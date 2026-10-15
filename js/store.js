@@ -1,10 +1,10 @@
 // App state, persisted to localStorage. Everything else is derived from this.
-import { TREES, SKILL_TREES } from './data.js';
+import { TREES, SKILL_TREES, STEP, MIGRATE_V1 } from './data.js';
 
-const KEY = 'ascend.v1';
+const KEY = 'ascend.v1'; // storage key stays the same across data versions
 const listeners = new Set();
 
-export const VERSION = 1;
+export const VERSION = 2;
 
 function blank() {
   return {
@@ -17,10 +17,49 @@ function blank() {
   };
 }
 
+// v1 → v2: the shared foundation tree became per-chain foundation steps and step ids became
+// slug-based. Map every saved reference onto the new ids.
+export function migrate(s) {
+  if ((s.version || 1) >= 2) return s;
+  const map = (id) => MIGRATE_V1[id] || (STEP[id] ? [id] : []);
+  const mastered = {};
+  for (const [id, m] of Object.entries(s.mastered || {})) for (const n of map(id)) mastered[n] = { ...m };
+  s.mastered = mastered;
+  s.sessions = (s.sessions || []).filter((x) => map(x.stepId).length).map((x) => ({ ...x, stepId: map(x.stepId)[0] }));
+  for (const plan of Object.values(s.plans || {})) {
+    plan.items = (plan.items || []).filter((it) => map(it.stepId).length).map((it) => ({ ...it, stepId: map(it.stepId)[0] }));
+  }
+  // New foundation steps that sit before something already mastered count as done.
+  for (const tree of SKILL_TREES) {
+    let last = -1;
+    tree.steps.forEach((st, i) => s.mastered[st.id] && (last = i));
+    for (let i = 0; i < last; i++) {
+      const st = tree.steps[i];
+      if (!s.mastered[st.id]) s.mastered[st.id] = { ...s.mastered[tree.steps[last].id], source: 'baseline' };
+    }
+  }
+  // Starting point = the leading run of baseline steps in each chain.
+  if (s.profile) {
+    const trees = {};
+    for (const tree of SKILL_TREES) {
+      let i = 0;
+      while (i < tree.steps.length && s.mastered[tree.steps[i].id]?.source === 'baseline') i++;
+      trees[tree.id] = i;
+    }
+    s.profile.start = { trees };
+  }
+  s.version = 2;
+  return s;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
-    if (raw) return { ...blank(), ...JSON.parse(raw) };
+    if (raw) {
+      const s = migrate({ ...blank(), version: 1, ...JSON.parse(raw) });
+      localStorage.setItem(KEY, JSON.stringify(s));
+      return s;
+    }
   } catch (e) {
     console.warn('Could not read saved data', e);
   }
@@ -54,7 +93,7 @@ export function refresh() {
 }
 
 export function replaceState(next) {
-  state = { ...blank(), ...next };
+  state = migrate({ ...blank(), version: 1, ...next });
   save();
   listeners.forEach((fn) => fn());
 }
@@ -114,7 +153,7 @@ export function weekStart(key) {
 
 // ---- starting point ----
 
-// profile.start = { trees: { treeId: currentStepIndex }, foundation: [stepIds] }
+// profile.start = { trees: { treeId: currentStepIndex } }
 // Steps before the chosen index are marked mastered with source 'baseline'.
 export function applyStartingPoint(s) {
   const start = s.profile?.start;
@@ -126,7 +165,6 @@ export function applyStartingPoint(s) {
   const mark = (id) => {
     if (!s.mastered[id]) s.mastered[id] = { date, source: 'baseline' };
   };
-  (start.foundation || []).forEach(mark);
   for (const tree of SKILL_TREES) {
     const idx = start.trees?.[tree.id] || 0;
     tree.steps.slice(0, idx).forEach((st) => mark(st.id));

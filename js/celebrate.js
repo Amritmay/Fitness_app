@@ -18,21 +18,22 @@ function confetti() {
   return `<div class="confetti" aria-hidden="true">${pieces.join('')}</div>`;
 }
 
-function levelUpCard(st) {
+function levelUpCard(st, jumped = []) {
   const tree = TREE[st.treeId];
   const next = currentStep(state, tree);
   const unit = st.kind === 'hold' ? 's' : '';
   return `<div class="levelup">
-    <span class="lu-tag">${icon('bolt')} Level up</span>
+    <span class="lu-tag">${icon('bolt')} ${jumped.length ? `Jumped ${jumped.length} step${jumped.length > 1 ? 's' : ''}` : 'Level up'}</span>
     <h3>${esc(st.name)}</h3>
     <div class="lu-target">${st.sets} × <b>${st.target}${unit}</b></div>
     <p>${next && next.treeId === st.treeId
       ? `You hit ${st.sets} × ${st.target}${unit}. Next up in ${esc(tree.name)}: <strong style="color:var(--text)">${esc(next.name)}</strong> (${fmtShort(next)}).`
       : `You hit ${st.sets} × ${st.target}${unit}. ${esc(tree.name)} tree complete!`}</p>
+    ${jumped.length ? `<p>Strength carried over — credited: <strong style="color:var(--text)">${esc(jumped.map((x) => x.name).join(', '))}</strong>.</p>` : ''}
   </div>`;
 }
 
-export function celebrate({ dayComplete = false, mastered = null, level = null } = {}) {
+export function celebrate({ dayComplete = false, mastered = null, jumped = [], level = null } = {}) {
   const el = document.getElementById('celebrate');
   const d = today();
   const todays = state.sessions.filter((x) => x.date === d).sort((a, b) => a.ts - b.ts);
@@ -44,7 +45,7 @@ export function celebrate({ dayComplete = false, mastered = null, level = null }
   el.innerHTML = `${confetti()}<div class="cele-inner">
     <div class="cele-progress"></div>
     <div class="cele-check">${icon('check')}</div>
-    <h2>${dayComplete ? 'Workout complete' : 'Step mastered'}</h2>
+    <h2>${dayComplete ? 'Workout complete' : jumped.length ? 'Jump complete' : 'Step mastered'}</h2>
     <div class="muted small">Today · ${esc(time)}${level ? ` · Level ${level.level} ${esc(level.title)}` : ''}</div>
     ${dayComplete ? `<div class="cele-stats">
         <div><strong>${sets}</strong><span>Sets</span></div>
@@ -55,7 +56,7 @@ export function celebrate({ dayComplete = false, mastered = null, level = null }
         const st = STEP[x.stepId];
         return `<li>${esc(st.name)}<span>${x.sets.map((v) => `${v}${st.kind === 'hold' ? 's' : ''}`).join(' · ')}</span></li>`;
       }).join('')}</ul>` : ''}
-    ${mastered ? levelUpCard(mastered) : ''}
+    ${mastered ? levelUpCard(mastered, jumped) : ''}
     <button class="btn white big" data-cele-close>Continue</button>
   </div>`;
   el.classList.add('show');

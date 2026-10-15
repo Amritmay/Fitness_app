@@ -1,7 +1,7 @@
 // Bottom sheet for logging sets of a step, with hold stopwatch and rest timer.
 import { STEP, TREE } from '../data.js';
 import { state, update, today } from '../store.js';
-import { stepStatus, bestFor, logSession, meetsTarget, levelInfo, totalXp, planComplete } from '../engine.js';
+import { stepStatus, bestFor, logSession, meetsTarget, levelInfo, totalXp, planComplete, jumpFor } from '../engine.js';
 import { celebrate } from '../celebrate.js';
 import { esc, fmtShort, openSheet, closeSheet, toast, treeColor, icon, tutorialUrl } from '../ui.js';
 import { holdStopwatch, startRest, unlockAudio } from '../timer.js';
@@ -15,6 +15,8 @@ export function openLogSheet(stepId, { sets, target } = {}) {
   const best = bestFor(state, stepId);
   const restDefault = state.profile?.restSeconds || 90;
   const hold = st.kind === 'hold';
+  const jump = jumpFor(state, tree);
+  const isJump = jump?.target.id === stepId;
 
   const row = (i) => `<div class="set-row" data-row>
       <span class="set-n">Set ${i + 1}</span>
@@ -32,9 +34,11 @@ export function openLogSheet(stepId, { sets, target } = {}) {
         <span class="pill"><i></i>Goal ${fmtShort(st, nSets, goal)}</span>
         ${goal !== st.target || nSets !== st.sets ? `<span class="pill warn"><i></i>Unlock ${fmtShort(st)}</span>` : ''}
         <span class="pill ok"><i></i>Best ${best ? `${best}${hold ? 'S' : ' REPS'}` : '—'}</span>
+        ${isJump ? `<span class="pill"><i></i>⤴ Jump test · skips ${jump.skipped.length}</span>` : ''}
       </div>
+      ${isJump ? `<span class="muted small">Hit ${fmtShort(st)} to also credit ${esc(jump.skipped.map((x) => x.name).join(' + '))}.</span>` : ''}
       ${status === 'mastered' ? `<span class="muted small">Already mastered — this logs as practice.</span>` : ''}
-      ${status === 'locked' ? `<span class="muted small">Still locked — this logs as practice.</span>` : ''}
+      ${status === 'locked' && !isJump ? `<span class="muted small">Still locked — this logs as practice.</span>` : ''}
       <a class="small" href="${tutorialUrl(st)}" target="_blank" rel="noopener">${icon('video')} Watch tutorials</a>
     </div>
     <details class="cues"><summary>Form cues</summary><ul>${st.cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ul></details>
@@ -109,13 +113,14 @@ export function openLogSheet(stepId, { sets, target } = {}) {
     const lv = levelInfo(totalXp(state));
     const dayComplete = !dayBefore && planComplete(state, today());
     if (dayComplete || res.mastered) {
-      celebrate({ dayComplete, mastered: res.mastered, level: lv.level > levelBefore ? lv : null });
+      celebrate({ dayComplete, mastered: res.mastered, jumped: res.jumped, level: lv.level > levelBefore ? lv : null });
       const others = res.unlocked.filter((x) => x.treeId !== st.treeId);
       if (others.length) toast(`New tree unlocked: ${esc(others.map((x) => TREE[x.treeId].name).join(', '))}`, 'big');
       return;
     }
     toast(`${icon('bolt')} +${res.xp} XP`);
-    if (stepStatus(state, stepId) === 'available' && !meetsTarget(st, values)) {
+    if (isJump) toast('Jump test not passed — logged as practice. Keep building!');
+    else if (stepStatus(state, stepId) === 'available' && !meetsTarget(st, values)) {
       const hit = values.filter((v) => v >= st.target).length;
       if (hit) toast(`${hit}/${st.sets} sets at target — close!`);
     }

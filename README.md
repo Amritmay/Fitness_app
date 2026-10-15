@@ -4,11 +4,12 @@ A free, offline-capable web app (PWA) for calisthenics skill progression. No bui
 
 ## Features
 
-- **Skill wheel**: every tree is a spoke and every step is a dot. Mastered steps are green, your current step is a glowing blue dot, and locked steps are grey.
-- **9 skill trees + Foundation**: Pull-up, Muscle-up, Front Lever, Handstand, Planche, L-Sit, Dragon Flag, Human Flag, Pistol Squat. Each step has a mastery target and form cues.
-- **Unlocks**: logging a session that hits the target for every set masters the step and unlocks the next one. Some trees need steps from other trees first (e.g. Muscle-up needs 3×8 pull-ups and dips).
+- **Skill wheel**: every skill is a straight chain from the centre (its own foundation exercises) to the edge (mastery). Related chains sit side by side, and straight branches between them are jump routes. Mastered steps are green, your current step is a glowing blue dot, locked steps are grey, and blue dotted lines lead to your next step or an open jump.
+- **9 skill chains**: Pull-up, Muscle-up, Front Lever, Handstand, Planche, L-Sit, Dragon Flag, Human Flag, Pistol Squat. Each starts with its own foundation exercises, and every step has a mastery target and form cues. All chains are open from day one.
+- **Unlocks**: logging a session that hits the target for every set masters the step and unlocks the next one.
 - **Profile & starting point**: onboarding records your stats, benchmark tests and where you are in each tree. You can edit them later on the Profile tab.
 - **Daily plan**: generated from your focus skills, session length and weekly target. It balances push/pull/core/legs, avoids training the same skill two days in a row, and suggests rest days. Plans and custom daily goals are saved per day.
+- **Cross-tree jumps (biomechanics)**: every step is tagged with the movement patterns it demands (vertical pull, straight-arm pull, press, compression…). Your strength profile, built from mastered steps, practice and benchmark tests, can open a **jump test** in another tree. Pass it and up to 3 earlier steps are credited as *transfer*. Technique, straight-arm (tendon) and mobility steps are never skipped. Each step also lists the trees it **also builds**, and daily plans favour two-for-one exercises.
 - **XP & levels**, weekly streaks, day-complete bonus.
 - **Plateau detection**: if your best set hasn't improved in 14 days, you get a volume block and other suggestions.
 - **Rest timer** (floating, survives navigation), **hold stopwatch** with lead-in countdown and target beep.
@@ -45,7 +46,8 @@ Open the link in **Safari → Share → Add to Home Screen**. Your data lives on
 | What | Where |
 | --- | --- |
 | Skills, steps, targets, form cues, tree requirements | `js/data.js` |
-| XP values, levels, plateau rules, plan generator | `js/engine.js` |
+| XP values, levels, plateau rules, plan generator, jump logic | `js/engine.js` |
+| Movement patterns, step demands, gates, jump branches, wheel order | `js/biomech.js` |
 | Colours / theme (dark only) | tokens at the top of `css/app.css` |
 | Skill wheel / track drawing | `js/wheel.js` |
 | Workout-complete / level-up screens | `js/celebrate.js` |

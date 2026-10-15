@@ -1,12 +1,31 @@
 // Progress: level, activity heatmap, weekly XP, tree completion, per-step charts, milestones, history.
 import { STEP, TREE, TREES, ALL_STEPS, BENCHMARKS } from '../data.js';
 import { state, update, refresh, today, addDays, weekStart } from '../store.js';
-import { levelInfo, totalXp, sessionXp, treeProgress, sessionsFor, bestOf, weekStreak, deleteSession, isMastered } from '../engine.js';
-import { esc, fmtDate, fmtTarget, catColor, treeColor, lineChart, barChart, heatmap, icon } from '../ui.js';
+import { levelInfo, totalXp, sessionXp, treeProgress, sessionsFor, bestOf, weekStreak, deleteSession, isMastered, capacity } from '../engine.js';
+import { PATTERNS } from '../biomech.js';
+import { esc, fmtDate, fmtTarget, catColor, treeColor, lineChart, barChart, heatmap, icon, radar } from '../ui.js';
 
 let chartStep = null;
 let chartBench = 'pullups';
 let historyLimit = 30;
+
+// Strength profile: capacity per movement pattern, and where it came from.
+function profileCard() {
+  const cap = capacity(state);
+  const from = (f) => (!f ? '—' : f.benchmark ? 'Benchmark test' : `${STEP[f.stepId].name}${f.partial ? ' (practice)' : ''}`);
+  const sorted = [...PATTERNS].sort((a, b) => cap[b.id].value - cap[a.id].value);
+  return `<section class="card">
+    <h2 class="card-title">Strength profile</h2>
+    <div class="card-sub">Capacity per movement pattern · drives cross-tree jumps</div>
+    ${radar(PATTERNS.map((p) => ({ label: p.short, value: cap[p.id].value / 10 })))}
+    <ul class="cap-list">${sorted.map((p) => `<li title="${esc(p.muscles)}">
+      <span class="cap-name">${esc(p.name)}</span>
+      <span class="hbar"><span style="width:${cap[p.id].value * 10}%"></span></span>
+      <span class="cap-val">${cap[p.id].value ? +cap[p.id].value.toFixed(1) : 0}</span>
+      <span class="cap-from">${esc(from(cap[p.id].from))}</span>
+    </li>`).join('')}</ul>
+  </section>`;
+}
 
 export function render() {
   const s = state;
@@ -50,6 +69,8 @@ export function render() {
       <div class="xp-bar"><span style="width:${(lv.pct * 100).toFixed(1)}%"></span></div>
       <div class="muted small">${lv.span - lv.into} XP to level ${lv.level + 1}</div>
     </section>
+
+    ${profileCard()}
 
     <section class="tiles">
       <div class="tile"><span class="muted small">Sessions</span><strong>${s.sessions.length}</strong></div>

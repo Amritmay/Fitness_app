@@ -1,6 +1,6 @@
 // Offline support: network-first (so edits show up immediately), falling back to cache.
 // Bump CACHE when you add files so old caches are cleaned up.
-const CACHE = 'ascend-v4';
+const CACHE = 'ascend-v6';
 const FILES = [
   './',
   './index.html',
@@ -14,6 +14,7 @@ const FILES = [
   './js/timer.js',
   './js/wheel.js',
   './js/celebrate.js',
+  './js/biomech.js',
   './js/views/log.js',
   './js/views/onboarding.js',
   './js/views/today.js',

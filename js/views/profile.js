@@ -1,5 +1,5 @@
 // Profile: identity, starting point, benchmarks, training preferences, backup.
-import { SKILL_TREES, FOUNDATION, BENCHMARKS } from '../data.js';
+import { SKILL_TREES, BENCHMARKS } from '../data.js';
 import { state, update, uid, today, applyStartingPoint, exportJSON, replaceState, resetAll } from '../store.js';
 import { levelInfo, totalXp, generatePlan } from '../engine.js';
 import { esc, fmtDate, catColor, icon, openSheet, closeSheet, toast } from '../ui.js';
@@ -40,8 +40,6 @@ export function render() {
       <div class="row between"><h2 class="card-title">Starting point</h2><button class="btn ghost small" data-act="edit-start">Edit</button></div>
       <div class="muted small">Set on ${fmtDate(p.startDate, { day: 'numeric', month: 'long', year: 'numeric' })}</div>
       <ul class="start-list">
-        <li><span class="dot" style="background:${catColor('foundation')}"></span><span class="grow">Foundation</span>
-          <span class="muted small">${(start.foundation || []).length}/${FOUNDATION.steps.length} known</span></li>
         ${SKILL_TREES.map((t) => {
           const i = start.trees?.[t.id] || 0;
           const label = i >= t.steps.length ? 'Whole tree mastered' : `Step ${i + 1}: ${t.steps[i].name}`;

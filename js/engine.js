@@ -1,6 +1,7 @@
 // Derived logic: unlocks, XP/levels, plateau detection, daily plans, streaks.
-import { TREES, TREE, STEP, SKILL_TREES, FOUNDATION, ALL_STEPS } from './data.js';
+import { TREES, TREE, STEP, SKILL_TREES, ALL_STEPS } from './data.js';
 import { today, addDays, daysBetween, weekStart, uid } from './store.js';
+import { PATTERNS, DEMANDS, GATES, JUMP_TOLERANCE, MAX_SKIP, benchmarkCapacity } from './biomech.js';
 
 // ---- status ----
 
@@ -149,6 +150,108 @@ export function allPlateaus(s, date = today()) {
   return ALL_STEPS.map((st) => plateau(s, st.id, date)).filter(Boolean);
 }
 
+// ---- biomechanics: strength profile, cross-tree jumps, carryover ----
+
+export function latestBenchmarks(s) {
+  const out = {};
+  [...s.benchmarks].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((b) => {
+    for (const [k, v] of Object.entries(b)) if (typeof v === 'number') out[k] = v;
+  });
+  return out;
+}
+
+// Capacity per movement pattern (0–10), with the step/benchmark that set it.
+export function capacity(s) {
+  const cap = Object.fromEntries(PATTERNS.map((p) => [p.id, { value: 0, from: null }]));
+  const bump = (demands, factor, from) => {
+    for (const [p, v] of Object.entries(demands || {})) {
+      const val = v * factor;
+      if (val > cap[p].value) cap[p] = { value: val, from };
+    }
+  };
+  for (const [p, v] of Object.entries(benchmarkCapacity(latestBenchmarks(s)))) {
+    if (v > cap[p].value) cap[p] = { value: v, from: { benchmark: true } };
+  }
+  for (const st of ALL_STEPS) {
+    if (isMastered(s, st.id)) bump(DEMANDS[st.id], 1, { stepId: st.id });
+    else {
+      // Partial credit for what you've already shown in practice.
+      const best = bestFor(s, st.id);
+      if (best) bump(DEMANDS[st.id], Math.min(1, best / st.target) * 0.9, { stepId: st.id, partial: true });
+    }
+  }
+  return cap;
+}
+
+export function covers(cap, stepId) {
+  return Object.entries(DEMANDS[stepId] || {}).every(([p, v]) => cap[p].value >= v - JUMP_TOLERANCE);
+}
+
+// The furthest step (≤ MAX_SKIP ahead) you can test into, or null.
+export function jumpFor(s, tree, cap = capacity(s)) {
+  if (!tree || tree.parallel) return null;
+  const cur = currentStep(s, tree);
+  if (!cur || stepStatus(s, cur.id) !== 'available') return null;
+  let best = null;
+  for (let i = cur.index + 1; i <= Math.min(cur.index + MAX_SKIP, tree.steps.length - 1); i++) {
+    const target = tree.steps[i];
+    if (isMastered(s, target.id)) continue;
+    const skipped = tree.steps.slice(cur.index, i).filter((st) => !isMastered(s, st.id));
+    if (skipped.some((st) => GATES[st.id])) break;
+    if (![...skipped, target].every((st) => covers(cap, st.id))) break;
+    best = { tree, target, skipped, evidence: evidenceFor(s, target, cap) };
+  }
+  return best;
+}
+
+export function allJumps(s) {
+  const cap = capacity(s);
+  return SKILL_TREES.map((t) => jumpFor(s, t, cap)).filter(Boolean);
+}
+
+// What earned the capacity a step needs: unique steps/benchmarks, strongest first.
+export function evidenceFor(s, target, cap = capacity(s)) {
+  const seen = new Set();
+  return Object.entries(DEMANDS[target.id] || {})
+    .sort((a, b) => b[1] - a[1])
+    .map(([p]) => cap[p].from)
+    .filter((f) => {
+      const key = f ? (f.benchmark ? 'bench' : f.stepId) : 'none';
+      if (!f || seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, 3);
+}
+
+// Max demand per pattern across a tree — what that tree trains.
+const TREE_PROFILE = Object.fromEntries(
+  SKILL_TREES.map((t) => {
+    const prof = {};
+    t.steps.forEach((st) => Object.entries(DEMANDS[st.id] || {}).forEach(([p, v]) => (prof[p] = Math.max(prof[p] || 0, v))));
+    return [t.id, prof];
+  })
+);
+
+// Other skill trees this step meaningfully trains for (shared patterns at a real intensity).
+export function alsoBuilds(stepId, limit = 3) {
+  const st = STEP[stepId];
+  const d = DEMANDS[stepId] || {};
+  // Only the step's main patterns count (within 75% of its biggest demand).
+  const top = Math.max(0, ...Object.values(d));
+  const main = Object.entries(d).filter(([, v]) => v >= 2.5 && v > top * 0.75);
+  return SKILL_TREES.filter((t) => t.id !== st.treeId)
+    .map((t) => {
+      let score = 0;
+      for (const [p, v] of main) if ((TREE_PROFILE[t.id][p] || 0) >= 2.5) score += Math.min(v, TREE_PROFILE[t.id][p]);
+      return { tree: t, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map((x) => x.tree);
+}
+
 // ---- performance: last 14 days vs the 14 before ----
 
 // Best set per step in each window. delta is null when there's nothing to compare against.
@@ -245,22 +348,31 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
   const keptSteps = new Set(kept.map((it) => it.stepId));
   const candidates = [];
 
-  for (const st of FOUNDATION.steps) {
-    if (!isMastered(s, st.id) && !keptSteps.has(st.id)) candidates.push({ st, tree: FOUNDATION, score: 2.5, reason: 'Foundation' });
-  }
+  const cap = capacity(s);
   for (const tree of SKILL_TREES) {
-    const st = currentStep(s, tree);
-    if (!st || stepStatus(s, st.id) !== 'available' || keptSteps.has(st.id)) continue;
+    const jump = jumpFor(s, tree, cap);
+    const st = jump ? jump.target : currentStep(s, tree);
+    if (!st || (!jump && stepStatus(s, st.id) !== 'available') || keptSteps.has(st.id)) continue;
     let score = 1;
-    let reason = 'Keep progressing';
+    let reason = st.base ? 'Foundation' : 'Keep progressing';
     if (focus.has(tree.id)) {
       score += 3;
       reason = 'Focus skill';
     }
+    // Two-for-one: exercises that also build your other focus skills rank higher.
+    const twoForOne = alsoBuilds(st.id).filter((t) => focus.has(t.id));
+    if (twoForOne.length) {
+      score += 0.6 * twoForOne.length;
+      if (reason !== 'Focus skill') reason = `Also builds ${twoForOne[0].name}`;
+    }
+    if (jump) {
+      score += 0.8;
+      reason = `Jump test · skips ${jump.skipped.length}`;
+    }
     const best = bestFor(s, st.id);
     if (best >= st.target * 0.8) {
       score += 1;
-      if (reason !== 'Focus skill') reason = 'Close to unlock';
+      if (reason === 'Keep progressing') reason = 'Close to unlock';
     }
     const last = lastTrained(s, tree.id);
     if (last && daysBetween(last, date) <= 1) score -= 2.5;
@@ -308,12 +420,22 @@ export function planComplete(s, date) {
 export function logSession(s, { stepId, sets, note = '', date = today() }) {
   const st = STEP[stepId];
   const before = new Set(availableSteps(s).map((x) => x.id));
-  s.sessions.push({ id: uid(), date, ts: Date.now(), stepId, sets, note });
-  const result = { xp: sessionXp({ stepId, sets }), mastered: null, unlocked: [] };
+  const jump = jumpFor(s, TREE[st.treeId]);
+  const id = uid();
+  s.sessions.push({ id, date, ts: Date.now(), stepId, sets, note });
+  const result = { xp: sessionXp({ stepId, sets }), mastered: null, jumped: [], unlocked: [] };
   if (stepStatus(s, stepId) === 'available' && meetsTarget(st, sets)) {
     s.mastered[stepId] = { date, source: 'logged' };
     result.mastered = st;
-    result.xp += masteryXp(st);
+  } else if (jump && jump.target.id === stepId && meetsTarget(st, sets)) {
+    // Passed a jump test: master the target and credit the steps it skipped.
+    s.mastered[stepId] = { date, source: 'logged', jump: true };
+    jump.skipped.forEach((x) => (s.mastered[x.id] = { date, source: 'transfer', via: id }));
+    result.mastered = st;
+    result.jumped = jump.skipped;
+  }
+  if (result.mastered) {
+    result.xp += [result.mastered, ...result.jumped].reduce((n, x) => n + masteryXp(x), 0);
     result.unlocked = availableSteps(s).filter((x) => !before.has(x.id));
   }
   return result;
@@ -328,32 +450,34 @@ export function deleteSession(s, id) {
     const still = s.sessions.some((y) => y.stepId === x.stepId && meetsTarget(st, y.sets));
     if (!still) delete s.mastered[x.stepId];
   }
+  // If that undid a passed jump test, the steps it credited go too.
+  if (x && !s.mastered[x.stepId]) {
+    for (const [stepId, m] of Object.entries(s.mastered)) if (m.via === id) delete s.mastered[stepId];
+  }
 }
 
 // ---- starting-point suggestion from benchmarks ----
 
+// Index of the step you're currently working on in each chain, from benchmark tests.
+// Only chains the tests say something direct about move; the rest start at their foundation and
+// can jump ahead using strength from neighbouring chains.
 export function suggestStart(b = {}) {
   const n = (k) => Number(b[k]) || 0;
-  const foundation = [];
-  if (n('pullups') >= 1) foundation.push('found-hang', 'found-scap');
-  if (n('pushups') >= 12) foundation.push('found-pushup');
-  if (n('dips') >= 8) foundation.push('found-dips');
-  if (n('squats') >= 20) foundation.push('found-squat');
-  if (n('hollow') >= 30) foundation.push('found-hollow');
-
   const pu = n('pullups');
-  const trees = {
-    pullup: pu >= 16 ? 6 : pu >= 11 ? 5 : pu >= 7 ? 4 : pu >= 3 ? 3 : pu >= 1 ? 2 : 0,
-    handstand: n('wallHS') >= 60 ? 3 : n('wallHS') >= 30 ? 2 : n('wallHS') >= 10 ? 1 : 0,
-    pistol: 0,
-    muscleup: pu >= 10 && n('dips') >= 8 ? 1 : 0,
-    frontlever: 0,
-    planche: 0,
-    lsit: n('dips') >= 8 ? 1 : 0,
-    dragonflag: n('hollow') >= 45 ? 1 : 0,
-    humanflag: 0,
+  const hs = n('wallHS');
+  return {
+    trees: {
+      pullup: pu >= 16 ? 8 : pu >= 11 ? 7 : pu >= 7 ? 6 : pu >= 3 ? 5 : pu >= 1 ? 4 : 0,
+      muscleup: 0,
+      frontlever: n('hollow') >= 30 ? 1 : 0,
+      handstand: hs >= 60 ? 5 : hs >= 30 ? 4 : hs >= 10 ? 3 : n('pushups') >= 12 ? 1 : 0,
+      planche: n('pushups') >= 12 ? 1 : 0,
+      lsit: n('hollow') >= 30 ? 1 : 0,
+      dragonflag: n('hollow') >= 30 ? 1 : 0,
+      humanflag: 0,
+      pistol: n('squats') >= 20 ? 1 : 0,
+    },
   };
-  return { foundation, trees };
 }
 
 export { TREES };

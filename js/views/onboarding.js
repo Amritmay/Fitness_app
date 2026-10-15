@@ -1,49 +1,32 @@
 // First-run setup. The starting-point fields are reused by the profile page.
-import { FOUNDATION, SKILL_TREES, BENCHMARKS } from '../data.js';
+import { SKILL_TREES, BENCHMARKS } from '../data.js';
 import { state, update, uid, today, applyStartingPoint, requestPersistence } from '../store.js';
 import { suggestStart, generatePlan } from '../engine.js';
 import { esc, fmtTarget, toast, catColor } from '../ui.js';
 
-export function startingPointFields(start = { trees: {}, foundation: [] }) {
-  const found = new Set(start.foundation || []);
-  return `
-    <div class="field">
-      <label>Foundation — tick what you can already do</label>
-      <div class="check-grid">
-        ${FOUNDATION.steps
-          .map(
-            (st) => `<label class="check">
-              <input type="checkbox" name="found" value="${st.id}" ${found.has(st.id) ? 'checked' : ''}>
-              <span><strong>${esc(st.name)}</strong><small>${fmtTarget(st)}</small></span>
-            </label>`
-          )
+export function startingPointFields(start = { trees: {} }) {
+  return SKILL_TREES.map((tree) => {
+    const cur = start.trees?.[tree.id] || 0;
+    return `<div class="field">
+      <label for="start-${tree.id}"><span class="dot" style="background:${catColor(tree.category)}"></span>${esc(tree.name)}</label>
+      <select class="input" id="start-${tree.id}" name="start-${tree.id}">
+        ${tree.steps
+          .map((st, i) => `<option value="${i}" ${i === cur ? 'selected' : ''}>${i === 0 ? 'Just starting · ' : ''}Step ${i + 1}: ${esc(st.name)} (${fmtTarget(st)})${st.base ? ' · foundation' : ''}</option>`)
           .join('')}
-      </div>
-    </div>
-    ${SKILL_TREES.map((tree) => {
-      const cur = start.trees?.[tree.id] || 0;
-      return `<div class="field">
-        <label for="start-${tree.id}"><span class="dot" style="background:${catColor(tree.category)}"></span>${esc(tree.name)}</label>
-        <select class="input" id="start-${tree.id}" name="start-${tree.id}">
-          ${tree.steps
-            .map((st, i) => `<option value="${i}" ${i === cur ? 'selected' : ''}>${i === 0 ? 'Just starting · ' : ''}Step ${i + 1}: ${esc(st.name)} (${fmtTarget(st)})</option>`)
-            .join('')}
-          <option value="${tree.steps.length}" ${cur === tree.steps.length ? 'selected' : ''}>Already mastered the whole tree</option>
-        </select>
-      </div>`;
-    }).join('')}`;
+        <option value="${tree.steps.length}" ${cur === tree.steps.length ? 'selected' : ''}>Already mastered the whole chain</option>
+      </select>
+    </div>`;
+  }).join('');
 }
 
 export function readStartingPoint(form) {
   const trees = {};
   for (const tree of SKILL_TREES) trees[tree.id] = Number(form.querySelector(`[name="start-${tree.id}"]`).value) || 0;
-  const foundation = [...form.querySelectorAll('[name="found"]:checked')].map((i) => i.value);
-  return { trees, foundation };
+  return { trees };
 }
 
 export function fillStartingPoint(form, start) {
   for (const tree of SKILL_TREES) form.querySelector(`[name="start-${tree.id}"]`).value = String(start.trees[tree.id] || 0);
-  form.querySelectorAll('[name="found"]').forEach((i) => (i.checked = start.foundation.includes(i.value)));
 }
 
 export function prefsFields(p = {}) {
@@ -130,7 +113,7 @@ export function render() {
       </section>
       <section class="card">
         <h2 class="card-title">3 · Starting point</h2>
-        <p class="muted small">Pick the step you're currently <em>working on</em> in each tree. Earlier steps count as mastered.</p>
+        <p class="muted small">Each skill starts from its own foundation exercises. Pick the step you're currently <em>working on</em> in each chain — earlier steps count as mastered. Not sure? Leave it: the app opens jumps where your other skills already cover the early steps.</p>
         ${startingPointFields()}
       </section>
       <section class="card">

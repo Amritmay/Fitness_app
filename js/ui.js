@@ -159,6 +159,34 @@ export function heatmap(counts, weeks = 16) {
   return `<svg class="heatmap" viewBox="0 0 ${w} ${h}" role="img" aria-label="Training activity">${dayLabels}${rects}${monthLabels}</svg>`;
 }
 
+// Radar chart. axes: [{ label, value (0–1) }]
+export function radar(axes) {
+  const S = 320;
+  const c = S / 2;
+  const R = 104;
+  const n = axes.length;
+  const ang = (i) => -Math.PI / 2 + (i * 2 * Math.PI) / n;
+  const pt = (r, i) => [c + r * Math.cos(ang(i)), c + r * Math.sin(ang(i))];
+  const poly = (r) => axes.map((_, i) => pt(r, i).map((v) => v.toFixed(1)).join(',')).join(' ');
+  const rings = [0.25, 0.5, 0.75, 1].map((f) => `<polygon class="rd-ring" points="${poly(R * f)}"/>`).join('');
+  const spokes = axes.map((_, i) => {
+    const [x, y] = pt(R, i);
+    return `<line class="rd-spoke" x1="${c}" y1="${c}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}"/>`;
+  }).join('');
+  const shape = axes.map((a, i) => pt(R * Math.max(0.03, Math.min(1, a.value)), i).map((v) => v.toFixed(1)).join(',')).join(' ');
+  const dots = axes.map((a, i) => {
+    const [x, y] = pt(R * Math.max(0.03, Math.min(1, a.value)), i);
+    return `<circle class="rd-dot" cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="3"><title>${esc(a.label)}: ${Math.round(a.value * 100)}%</title></circle>`;
+  }).join('');
+  const labels = axes.map((a, i) => {
+    const [x, y] = pt(R + 20, i);
+    const cos = Math.cos(ang(i));
+    const anchor = Math.abs(cos) < 0.2 ? 'middle' : cos > 0 ? 'start' : 'end';
+    return `<text class="rd-label" x="${x.toFixed(1)}" y="${(y + 3).toFixed(1)}" text-anchor="${anchor}">${esc(a.label.toUpperCase())}</text>`;
+  }).join('');
+  return `<svg class="radar" viewBox="-20 0 ${S + 40} ${S}" role="img" aria-label="Strength profile">${rings}${spokes}<polygon class="rd-shape" points="${shape}"/>${dots}${labels}</svg>`;
+}
+
 export function ring(pct, { size = 56, stroke = 6, color = 'var(--accent)', label = '' } = {}) {
   const r = (size - stroke) / 2;
   const c = 2 * Math.PI * r;
