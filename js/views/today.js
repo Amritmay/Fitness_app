@@ -2,7 +2,7 @@
 import { STEP, TREE, TREES } from '../data.js';
 import { state, update, today, uid } from '../store.js';
 import {
-  generatePlan, itemDone, planComplete, restSuggested, weekDays, trainedThisWeek, weekStreak,
+  generatePlan, itemDone, planComplete, restSuggested, weekPlan, dayInfo, DAY_TYPES, trainedThisWeek, weekStreak,
   levelInfo, totalXp, allPlateaus, plateauTips, stepStatus, makeItem, sessionXp, DAY_COMPLETE_XP,
 } from '../engine.js';
 import { esc, fmtShort, fmtDate, treeColor, icon, openSheet, closeSheet, toast } from '../ui.js';
@@ -24,7 +24,10 @@ export function render() {
   const d = today();
   const plan = s.plans[d];
   const lv = levelInfo(totalXp(s));
-  const week = weekDays(s, d);
+  const week = weekPlan(s, d);
+  const info = dayInfo(s, d);
+  const typeLabel = DAY_TYPES[plan.type || info.type || 'full'].label;
+  const nextDay = week.find((w) => w.date > d && w.training);
   const target = s.profile.daysPerWeek;
   const done = trainedThisWeek(s, d);
   const streak = weekStreak(s, d);
@@ -51,14 +54,18 @@ export function render() {
         <span class="pill ${streak ? 'ok' : ''}"><i></i>${streak} wk streak</span>
       </div>
       <div class="big-stat">${done}<small> / ${target} training days</small></div>
-      <div class="week-strip">
-        ${week.map((w) => `<div class="wd ${w.trained ? 'on' : ''} ${w.isToday ? 'today' : ''} ${w.future ? 'future' : ''}">
-          <span>${fmtDate(w.date, { weekday: 'narrow' })}</span><i></i></div>`).join('')}
+      <div class="week-plan">
+        ${week.map((w) => `<button class="wp-day ${w.trained ? 'on' : ''} ${w.isToday ? 'today' : ''} ${w.past ? 'past' : ''} ${w.training || w.trained ? '' : 'rest'}" data-act="day" data-date="${w.date}">
+          <span class="wp-name">${fmtDate(w.date, { weekday: 'short' })}</span>
+          <i></i>
+          <span class="wp-type">${w.type && (w.training || w.trained) ? DAY_TYPES[w.type].short.map(esc).join('<br>') : w.trained ? 'Extra' : 'Rest'}</span>
+        </button>`).join('')}
       </div>
+      <div class="card-sub">Tap a day to see its session · same muscles never trained hard two days running</div>
     </section>
 
     ${rest ? `<section class="card banner rest">
-      <div><strong>Rest day recommended</strong><div class="muted small">You've hit ${target} sessions this week. Recovery is when you get stronger.</div></div>
+      <div><strong>${info.training ? 'Rest day recommended' : 'Scheduled rest day'}</strong><div class="muted small">${info.training ? `You've hit ${target} sessions this week.` : 'Your muscles rebuild today.'} ${nextDay ? `Next: ${fmtDate(nextDay.date, { weekday: 'long' })} · ${esc(DAY_TYPES[nextDay.type].label)}.` : 'Recovery is when you get stronger.'}</div></div>
       <button class="btn ghost small" data-act="train-anyway">Train anyway</button>
     </section>` : ''}
 
@@ -66,7 +73,7 @@ export function render() {
 
     <section class="card ${rest ? 'dim' : ''}">
       <div class="row between">
-        <div><h2 class="card-title">Today's plan</h2><div class="card-sub" style="margin-top:6px">${plan.items.filter((it) => itemDone(s, d, it)).length}/${plan.items.length} done · tap to log</div></div>
+        <div><span class="eyebrow" style="color:var(--accent-text)">${esc(typeLabel)}${rest ? '' : ' day'}</span><h2 class="card-title" style="margin-top:4px">Today's plan</h2><div class="card-sub" style="margin-top:6px">${plan.items.filter((it) => itemDone(s, d, it)).length}/${plan.items.length} done · tap to log</div></div>
         <div class="row gap-s">
           <button class="icon-btn" data-act="regen" title="Generate a new plan">${icon('refresh')}</button>
           <button class="icon-btn" data-act="add-item" title="Add a skill">${icon('plus')}</button>
@@ -157,7 +164,27 @@ function openAddItem() {
   });
 }
 
+function openDay(date) {
+  const w = weekPlan(state, today()).find((x) => x.date === date);
+  if (!w) return;
+  const label = w.type && (w.training || w.trained) ? DAY_TYPES[w.type].label : 'Rest';
+  const when = w.isToday ? 'Today' : fmtDate(date, { weekday: 'long', day: 'numeric', month: 'short' });
+  const note = w.past ? (w.steps.length ? 'What you logged' : 'Nothing logged') : w.isToday ? "Today's plan" : w.steps.length ? 'Preview — adapts to what you actually log' : '';
+  const panel = openSheet(`<div class="sheet-head">
+      <span class="eyebrow" style="color:var(--accent-text)">${esc(when)}</span>
+      <h2>${esc(label)}</h2>
+      ${note ? `<div class="muted small">${esc(note)}</div>` : ''}
+    </div>
+    ${w.steps.length ? `<ul class="log-list">${w.steps.map((id) => {
+      const st = STEP[id];
+      return `<li><span class="dot" style="background:${treeColor(st.treeId)}"></span><div class="grow"><strong>${esc(st.name)}</strong> <span class="muted small">${esc(TREE[st.treeId].name)}</span></div><span class="mono muted small">${fmtShort(st)}</span></li>`;
+    }).join('')}</ul>` : `<p class="muted">${w.past ? 'A rest day.' : 'Recovery day — no training scheduled. Light mobility or a walk is ideal.'}</p>`}
+    <div class="sheet-actions"><button class="btn ghost" data-close>Close</button></div>`);
+  panel.querySelector('[data-close]').onclick = closeSheet;
+}
+
 export const actions = {
+  day: (el) => openDay(el.dataset.date),
   log: (el) => {
     const it = state.plans[today()].items.find((i) => i.id === el.dataset.id);
     if (it) openLogSheet(it.stepId, { sets: it.sets, target: it.target });

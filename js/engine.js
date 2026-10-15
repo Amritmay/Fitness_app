@@ -1,6 +1,6 @@
 // Derived logic: unlocks, XP/levels, plateau detection, daily plans, streaks.
 import { TREES, TREE, STEP, SKILL_TREES, ALL_STEPS } from './data.js';
-import { today, addDays, daysBetween, weekStart, uid } from './store.js';
+import { today, addDays, daysBetween, weekStart, uid, fromKey } from './store.js';
 import { PATTERNS, DEMANDS, GATES, JUMP_TOLERANCE, MAX_SKIP, benchmarkCapacity } from './biomech.js';
 
 // ---- status ----
@@ -310,8 +310,75 @@ export function weekStreak(s, date = today()) {
 
 export function restSuggested(s, date = today()) {
   const target = s.profile?.daysPerWeek || 3;
+  if (trainingDates(s).has(date)) return false;
   const before = weekDays(s, date).filter((d) => d.trained && d.date < date).length;
-  return before >= target && !trainingDates(s).has(date);
+  return !dayInfo(s, date).training || before >= target;
+}
+
+// ---- weekly schedule: which days you train and what each session focuses on ----
+
+// Training days (Mon = 0) are spread so rest days fall between hard sessions. The split alternates
+// movement groups so the same muscles are never trained hard on back-to-back days.
+export const SCHEDULES = {
+  2: { days: [0, 3], types: ['full', 'full'] },
+  3: { days: [0, 2, 4], types: ['full', 'full', 'full'] },
+  4: { days: [0, 1, 3, 4], types: ['pull+core', 'push+legs', 'pull+core', 'push+legs'] },
+  5: { days: [0, 1, 3, 4, 5], types: ['pull+core', 'push+legs', 'pull+core', 'push+legs', 'full'] },
+  6: { days: [0, 1, 2, 3, 4, 5], types: ['pull+core', 'push+legs', 'pull+core', 'push+legs', 'pull+core', 'push+legs'] },
+  7: { days: [0, 1, 2, 3, 4, 5, 6], types: ['pull+core', 'push+legs', 'pull+core', 'push+legs', 'pull+core', 'push+legs', 'light'] },
+};
+
+export const DAY_TYPES = {
+  full: { label: 'Full body', short: ['Full'], cats: ['pull', 'push', 'core', 'legs'] },
+  'pull+core': { label: 'Pull + Core', short: ['Pull', 'Core'], cats: ['pull', 'core'] },
+  'push+legs': { label: 'Push + Legs', short: ['Push', 'Legs'], cats: ['push', 'legs'] },
+  pull: { label: 'Pull', short: ['Pull'], cats: ['pull'] },
+  push: { label: 'Push', short: ['Push'], cats: ['push'] },
+  'legs+core': { label: 'Legs + Core', short: ['Legs', 'Core'], cats: ['legs', 'core'] },
+  light: { label: 'Active recovery', short: ['Light'], cats: ['pull', 'push', 'core', 'legs'] },
+};
+
+export function scheduleFor(s) {
+  const n = Math.min(7, Math.max(2, s.profile?.daysPerWeek || 3));
+  return SCHEDULES[n];
+}
+
+export function dayInfo(s, date) {
+  const sched = scheduleFor(s);
+  const i = sched.days.indexOf((fromKey(date).getDay() + 6) % 7);
+  return i >= 0 ? { training: true, type: sched.types[i] } : { training: false, type: null };
+}
+
+// A step trains a pattern hard when it's one of the step's main patterns (within 75% of its biggest
+// demand) at a real intensity. Minor demands — e.g. the core work in a wall handstand — don't count.
+const HARD = 3;
+
+function mainPatterns(stepId) {
+  const d = DEMANDS[stepId] || {};
+  const top = Math.max(0, ...Object.values(d));
+  return Object.entries(d).filter(([, v]) => v >= HARD && v > top * 0.75).map(([p]) => p);
+}
+
+function hardPatterns(stepIds) {
+  return new Set(stepIds.flatMap(mainPatterns));
+}
+
+// Patterns still recovering on `date`: anything trained hard the day before.
+export function recoveringPatterns(s, date) {
+  const prev = addDays(date, -1);
+  return hardPatterns(s.sessions.filter((x) => x.date === prev).map((x) => x.stepId));
+}
+
+function needsRecovery(stepId, recovering) {
+  return mainPatterns(stepId).some((p) => recovering.has(p));
+}
+
+// Session order: jump tests and balance/technique first (fresh nervous system), then strength, then foundation work.
+function orderKey(it) {
+  const st = STEP[it.stepId];
+  if (it.reason.startsWith('Jump test')) return 0;
+  if (GATES[st.id] === 'technique' || st.treeId === 'handstand') return 1;
+  return st.base ? 3 : 2;
 }
 
 // ---- daily plan ----
@@ -338,23 +405,56 @@ export function makeItem(st, reason, sets = st.sets, target = st.target) {
   return { id: uid(), stepId: st.id, sets, target, reason, manualDone: false };
 }
 
-export function generatePlan(s, date = today(), seed = Math.floor(Math.random() * 1e9)) {
+export function generatePlan(s, date = today(), seed = Math.floor(Math.random() * 1e9), { type: forceType } = {}) {
   const p = s.profile || {};
   const focus = new Set(p.focus || []);
   const rand = rng(seed);
   const old = s.plans[date];
+  const info = dayInfo(s, date);
+  const type = forceType || info.type || 'full';
+  const cats = new Set(DAY_TYPES[type].cats);
+  const recovering = recoveringPatterns(s, date);
+  // Groups the next training day will focus on — today must leave their main muscles fresh.
+  const next = dayInfo(s, addDays(date, 1));
+  const protect = new Set(next.training ? DAY_TYPES[next.type].cats : []);
+  const protectPatterns = new Set(
+    SKILL_TREES.filter((t) => protect.has(t.category) && !cats.has(t.category))
+      .map((t) => currentStep(s, t))
+      .filter(Boolean)
+      .flatMap((st) => mainPatterns(st.id))
+  );
   // Regenerating keeps whatever was already done today.
   const kept = old ? old.items.filter((it) => itemDone(s, date, it)) : [];
   const keptSteps = new Set(kept.map((it) => it.stepId));
+  const keptTrees = new Set(kept.map((it) => STEP[it.stepId].treeId));
   const candidates = [];
+
+  if (type === 'light') {
+    // Active recovery: easy foundation exercises that load nothing hard (practice even if mastered).
+    const easy = SKILL_TREES.flatMap((t) => t.steps.filter((st) => st.base && !mainPatterns(st.id).length))
+      .filter((st) => !keptSteps.has(st.id))
+      .map((st) => ({ st, score: rand() + (lastTrained(s, st.treeId) ? 0 : 0.5) }))
+      .sort((a, b) => b.score - a.score);
+    const seen = new Set();
+    const items = easy.filter(({ st }) => (seen.has(st.treeId) ? false : seen.add(st.treeId))).slice(0, 3)
+      .map(({ st }) => makeItem(st, 'Active recovery'));
+    return { items: [...kept, ...items], type, goals: old?.goals || [], restAck: old?.restAck || false, seed, createdAt: Date.now() };
+  }
 
   const cap = capacity(s);
   for (const tree of SKILL_TREES) {
+    if (keptTrees.has(tree.id)) continue;
     const jump = jumpFor(s, tree, cap);
     const st = jump ? jump.target : currentStep(s, tree);
     if (!st || (!jump && stepStatus(s, st.id) !== 'available') || keptSteps.has(st.id)) continue;
-    let score = 1;
-    let reason = st.base ? 'Foundation' : 'Keep progressing';
+    // Hard rule: muscles trained hard yesterday get their recovery day.
+    if (needsRecovery(st.id, recovering)) continue;
+    const inSplit = cats.has(tree.category);
+    if (!inSplit && protect.has(tree.category)) continue;
+    const tiresTomorrow = mainPatterns(st.id).some((pt) => protectPatterns.has(pt));
+    if (!inSplit && tiresTomorrow) continue;
+    let score = (inSplit ? 2 : -1.5) - (tiresTomorrow ? 2.5 : 0);
+    let reason = st.base ? 'Foundation' : `${DAY_TYPES[type].label} day`;
     if (focus.has(tree.id)) {
       score += 3;
       reason = 'Focus skill';
@@ -372,34 +472,69 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
     const best = bestFor(s, st.id);
     if (best >= st.target * 0.8) {
       score += 1;
-      if (reason === 'Keep progressing') reason = 'Close to unlock';
+      if (!focus.has(tree.id) && !jump) reason = 'Close to unlock';
     }
+    // Rotation: chains you haven't trained for a while move up.
     const last = lastTrained(s, tree.id);
-    if (last && daysBetween(last, date) <= 1) score -= 2.5;
-    candidates.push({ st, tree, score, reason });
+    score += last ? Math.min(1.5, 0.2 * daysBetween(last, date)) : 1.5;
+    if (!inSplit) reason = 'Extra · recovered muscles';
+    candidates.push({ st, tree, score, reason, inSplit });
   }
-  candidates.forEach((c) => (c.score += rand() * 0.8));
+  candidates.forEach((c) => (c.score += rand() * 0.6));
+  candidates.sort((a, b) => b.score - a.score);
 
-  const max = itemsForMinutes(p.sessionMinutes || 45) - kept.length;
-  const picked = [];
-  const perCat = {};
-  kept.forEach((it) => (perCat[STEP[it.stepId].cat] = (perCat[STEP[it.stepId].cat] || 0) + 1));
-  while (picked.length < max && candidates.length) {
-    candidates.sort((a, b) => b.score - (perCat[b.st.cat] || 0) * 1.2 - (a.score - (perCat[a.st.cat] || 0) * 1.2));
-    const idx = candidates.findIndex((c) => (perCat[c.st.cat] || 0) < 2);
-    if (idx === -1) break;
-    const [c] = candidates.splice(idx, 1);
-    perCat[c.st.cat] = (perCat[c.st.cat] || 0) + 1;
-    picked.push(c);
-  }
+  // Fill from the day's split first; only top up with other (recovered) chains if the split runs short.
+  // Multi-group days take the best exercise from each group before doubling up on any one group.
+  const max = Math.max(0, itemsForMinutes(p.sessionMinutes || 45) - kept.length);
+  const inSplit = candidates.filter((c) => c.inSplit);
+  const focused = inSplit.filter((c) => focus.has(c.tree.id));
+  const covered = new Set(focused.map((c) => c.tree.category));
+  const firsts = [...cats].filter((cat) => !covered.has(cat)).map((cat) => inSplit.find((c) => c.tree.category === cat)).filter(Boolean);
+  firsts.sort((a, b) => b.score - a.score);
+  const head = [...focused, ...firsts];
+  const ordered = [...head, ...inSplit.filter((c) => !head.includes(c)), ...candidates.filter((c) => !c.inSplit)];
+  const picked = ordered.slice(0, max);
 
   const items = picked.map(({ st, reason }) => {
     const pl = plateau(s, st.id, date);
     if (pl) return makeItem(st, 'Plateau — volume block', 5, Math.max(1, Math.round(pl.best * 0.7)));
     return makeItem(st, reason);
   });
+  const all = [...kept, ...items].sort((a, b) => orderKey(a) - orderKey(b));
 
-  return { items: [...kept, ...items], goals: old?.goals || [], restAck: old?.restAck || false, seed, createdAt: Date.now() };
+  return { items: all, type, goals: old?.goals || [], restAck: old?.restAck || false, seed, createdAt: Date.now() };
+}
+
+// The whole week (Mon–Sun) containing `date`: past days from your log, today's saved plan, and a preview
+// of upcoming sessions simulated as if each planned session gets done.
+export function weekPlan(s, date = today()) {
+  const sim = JSON.parse(JSON.stringify(s));
+  const start = weekStart(date);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = addDays(start, i);
+    const info = dayInfo(s, d);
+    const logged = s.sessions.filter((x) => x.date === d).map((x) => x.stepId);
+    let steps = [];
+    let type = info.type;
+    if (d < date) steps = [...new Set(logged)];
+    else {
+      let plan = d === date ? sim.plans[d] : null;
+      if (!plan && info.training) plan = generatePlan(sim, d, 7919 * (i + 1));
+      if (plan && (info.training || d === date)) {
+        type = plan.type || type;
+        steps = plan.items.map((it) => it.stepId);
+        // Pretend the session happens so the next day's recovery is realistic.
+        for (const it of plan.items) {
+          if (!sim.sessions.some((x) => x.date === d && x.stepId === it.stepId)) {
+            sim.sessions.push({ id: `sim-${d}-${it.stepId}`, date: d, ts: 0, stepId: it.stepId, sets: Array(it.sets).fill(0), note: '' });
+          }
+        }
+      }
+    }
+    days.push({ date: d, training: info.training, type, steps, trained: logged.length > 0, isToday: d === date, past: d < date });
+  }
+  return days;
 }
 
 export function itemDone(s, date, item) {

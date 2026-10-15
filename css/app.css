@@ -651,3 +651,26 @@ input[type="number"].input::-webkit-inner-spin-button { -webkit-appearance: none
 .bridge-list .br-why { font-size: 13px; color: var(--muted); }
 .br-dot { width: 8px; height: 8px; border-radius: 50%; background: #3a3a42; flex: none; }
 .br-dot.done { background: var(--ok); box-shadow: 0 0 8px rgb(74 222 128 / 0.6); }
+
+/* Week plan on Today */
+.week-plan { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.wp-day {
+  display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 8px 0 7px;
+  background: none; border: 1px solid transparent; border-radius: 12px; cursor: pointer; min-width: 0;
+}
+.wp-day:hover { background: var(--surface-2); }
+.wp-name { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.wp-day i { width: 10px; height: 10px; border-radius: 50%; border: 1.5px solid var(--dim); }
+.wp-day.on i { background: var(--ok); border-color: var(--ok); box-shadow: 0 0 10px rgb(74 222 128 / 0.6); }
+.wp-day.rest i { border-style: dashed; border-color: var(--line); }
+.wp-day.past:not(.on):not(.rest) i { border-color: rgb(255 107 107 / 0.5); }
+.wp-type { font-family: var(--mono); font-size: 8.5px; line-height: 1.35; letter-spacing: 0.06em; text-transform: uppercase; color: var(--accent-text); text-align: center; min-height: 2.7em; }
+.wp-day.rest .wp-type { color: var(--dim); }
+.wp-day.today { border-color: rgb(91 140 255 / 0.6); background: rgb(91 140 255 / 0.08); }
+.wp-day.today .wp-name { color: var(--text); }
+.sched { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
+.sched-day { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 8px 2px; border-radius: 10px; background: var(--surface-2); text-align: center; }
+.sched-day span { font-family: var(--mono); font-size: 9.5px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted); }
+.sched-day strong { font-size: 10.5px; font-weight: 650; line-height: 1.25; color: var(--accent-text); }
+.sched-day.rest { background: transparent; border: 1px dashed var(--line); }
+.sched-day.rest strong { color: var(--dim); }

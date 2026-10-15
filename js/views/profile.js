@@ -1,7 +1,7 @@
 // Profile: identity, starting point, benchmarks, training preferences, backup.
 import { SKILL_TREES, BENCHMARKS } from '../data.js';
 import { state, update, uid, today, applyStartingPoint, exportJSON, replaceState, resetAll } from '../store.js';
-import { levelInfo, totalXp, generatePlan } from '../engine.js';
+import { levelInfo, totalXp, generatePlan, scheduleFor, DAY_TYPES } from '../engine.js';
 import { esc, fmtDate, catColor, icon, openSheet, closeSheet, toast } from '../ui.js';
 import {
   startingPointFields, readStartingPoint, prefsFields, readPrefs, benchmarkFields, readBenchmarks,
@@ -66,6 +66,12 @@ export function render() {
 
     <section class="card">
       <h2 class="card-title">Training preferences</h2>
+      <div class="sched">${['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((dn, i) => {
+        const sc = scheduleFor(state);
+        const k = sc.days.indexOf(i);
+        return `<div class="sched-day ${k < 0 ? 'rest' : ''}"><span>${dn}</span><strong>${k < 0 ? 'Rest' : esc(DAY_TYPES[sc.types[k]].label)}</strong></div>`;
+      }).join('')}</div>
+      <p class="muted small">The app spreads your training days and alternates movement groups so each muscle gets at least a day to recover. Change days per week below and the schedule updates.</p>
       <form data-form="prefs" class="stack">
         ${prefsFields(p)}
         <button class="btn primary" type="submit">Save preferences</button>
