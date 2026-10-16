@@ -474,9 +474,9 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
       score += 1;
       if (!focus.has(tree.id) && !jump) reason = 'Close to unlock';
     }
-    // Rotation: chains you haven't trained for a while move up.
+    // Rotation: chains you haven't trained for a while move up; never-trained chains get their turn first.
     const last = lastTrained(s, tree.id);
-    score += last ? Math.min(1.5, 0.2 * daysBetween(last, date)) : 1.5;
+    score += last ? Math.min(3, 0.35 * daysBetween(last, date)) : 5;
     if (!inSplit) reason = 'Extra · recovered muscles';
     candidates.push({ st, tree, score, reason, inSplit });
   }
@@ -493,7 +493,20 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
   firsts.sort((a, b) => b.score - a.score);
   const head = [...focused, ...firsts];
   const ordered = [...head, ...inSplit.filter((c) => !head.includes(c)), ...candidates.filter((c) => !c.inSplit)];
-  const picked = ordered.slice(0, max);
+  // On multi-group days no single group takes more than its share (e.g. 2 of 4 on Push + Legs),
+  // so groups with many skills (legs) can't crowd out the rest.
+  const capPerCat = cats.size > 1 && cats.size < 4 ? Math.ceil(max / cats.size) : max;
+  const perCat = {};
+  kept.forEach((it) => (perCat[STEP[it.stepId].cat] = (perCat[STEP[it.stepId].cat] || 0) + 1));
+  const picked = [];
+  for (const c of ordered) {
+    if (picked.length >= max) break;
+    if (c.inSplit && (perCat[c.st.cat] || 0) >= capPerCat) continue;
+    perCat[c.st.cat] = (perCat[c.st.cat] || 0) + 1;
+    picked.push(c);
+  }
+  // Top up if the caps left empty slots.
+  for (const c of ordered) if (picked.length < max && !picked.includes(c)) picked.push(c);
 
   const items = picked.map(({ st, reason }) => {
     const pl = plateau(s, st.id, date);
@@ -611,6 +624,7 @@ export function suggestStart(b = {}) {
       dragonflag: n('hollow') >= 30 ? 1 : 0,
       humanflag: 0,
       pistol: n('squats') >= 20 ? 1 : 0,
+      squat: n('squats') >= 50 ? 4 : n('squats') >= 30 ? 2 : n('squats') >= 20 ? 1 : 0,
     },
   };
 }

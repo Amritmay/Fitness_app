@@ -5,7 +5,7 @@ import {
   stepStatus, currentStep, treeProgress, treeState, sessionsFor, bestOf, bestFor, plateau, plateauTips, isMastered,
   levelInfo, totalXp, performance, allJumps, jumpFor, alsoBuilds,
 } from '../engine.js';
-import { DEMANDS, PATTERN, GATES, GATE_INFO, BRIDGES } from '../biomech.js';
+import { DEMANDS, PATTERN, GATES, GATE_INFO, BRIDGES, GROUPS, muscleShare } from '../biomech.js';
 import { esc, fmtTarget, fmtShort, fmtDate, icon, lineChart, tutorialUrl, toast } from '../ui.js';
 import { skillWheel, treeTrack } from '../wheel.js';
 import { openLogSheet } from './log.js';
@@ -208,6 +208,13 @@ export function renderTree(id) {
       <h1>${esc(tree.name)}</h1>
     </header>
     <p class="muted">${esc(tree.blurb)}</p>
+    <div class="muscle-mix">${(() => {
+      const share = muscleShare(tree.steps);
+      return GROUPS.filter((g) => share[g.id] >= 0.05)
+        .sort((a, b) => share[b.id] - share[a.id])
+        .map((g) => `<span class="mm" style="--g:${g.color};flex:${share[g.id]}"><b>${esc(g.short || g.name)}</b> ${Math.round(share[g.id] * 100)}%</span>`)
+        .join('');
+    })()}</div>
     <div class="track-wrap">
       <div class="track-pills">
         ${tree.parallel ? '' : next}

@@ -4,8 +4,8 @@ A free, offline-capable web app (PWA) for calisthenics skill progression. No bui
 
 ## Features
 
-- **Skill wheel**: every skill is a straight chain from the centre (its own foundation exercises) to the edge (mastery). Related chains sit side by side, and straight branches between them are jump routes. Mastered steps are green, your current step is a glowing blue dot, locked steps are grey, and blue dotted lines lead to your next step or an open jump.
-- **9 skill chains**: Pull-up, Muscle-up, Front Lever, Handstand, Planche, L-Sit, Dragon Flag, Human Flag, Pistol Squat. Each starts with its own foundation exercises, and every step has a mastery target and form cues. All chains are open from day one.
+- **Skill wheel**: the edge is split into the major muscle groups (Back, Core, Legs, Shoulders & Arms), each sized by how many skills it holds. Every skill is a straight chain from the centre (its own foundation exercises) outward, placed in its main muscle group and ordered toward neighbouring groups it also uses. Steps are evenly spaced, so short, easier chains finish near the middle and long, hard ones reach the edge. The skill's name sits at the tip of its branch: grey while in progress, neon blue once mastered. Straight branches between nearby skills are the jump routes, and placement is computed from the muscle data, so new skills position themselves.
+- **20 skill chains**: Pull-up, Muscle-up, Front Lever, Human Flag (back); Dragon Flag, L-Sit, Elbow Lever (core); Pistol Squat, Dragon Squat, Cossack Squat, Bodyweight Squat, Bulgarian Split Squat, Wall Sit Calf Raises, Standing Calf Raises, Nordic Curl (legs); Handstand, Headstand, Frog Stand, Tuck Planche, Planche (shoulders & arms). Each starts with its own foundation exercises, and every step has a mastery target and form cues. All chains are open from day one.
 - **Unlocks**: logging a session that hits the target for every set masters the step and unlocks the next one.
 - **Profile & starting point**: onboarding records your stats, benchmark tests and where you are in each tree. You can edit them later on the Profile tab.
 - **Weekly schedule & daily plan**: the app picks your training days and spreads rest between them (5 days → Mon Tue Thu Fri Sat). Each day follows a movement-based split: full body for 2–3 days a week; Pull + Core alternating with Push + Legs for 4–6; plus an active-recovery day for 7. A muscle pattern trained hard one day (e.g. vertical pull, straight-arm push) is never trained hard the next, and today's plan avoids tiring the main muscles tomorrow's session needs. Focus skills come up 2–3× a week and neglected chains rotate in. Within a session, jump tests and balance work come first and foundation work last. The Today screen shows the week; tap a day to preview it. Plans and custom daily goals are saved per day.
@@ -47,7 +47,7 @@ Open the link in **Safari → Share → Add to Home Screen**. Your data lives on
 | --- | --- |
 | Skills, steps, targets, form cues, tree requirements | `js/data.js` |
 | XP values, levels, plateau rules, weekly schedule & split, plan generator, jump logic | `js/engine.js` |
-| Movement patterns, step demands, gates, jump branches, wheel order | `js/biomech.js` |
+| Movement patterns, step demands, gates, jump branches, muscle groups | `js/biomech.js` |
 | Colours / theme (dark only) | tokens at the top of `css/app.css` |
 | Skill wheel / track drawing | `js/wheel.js` |
 | Workout-complete / level-up screens | `js/celebrate.js` |

@@ -1,48 +1,91 @@
-// Radial skill wheel drawn as a tree, plus the horizontal tracks on tree rows and tree pages.
+// Radial skill wheel, plus the horizontal tracks on tree rows and tree pages.
 //
-// • Every skill is a straight chain from the centre (its foundation exercises) to the edge (mastery).
-// • Spokes follow WHEEL_ORDER so chains that share muscles sit side by side.
-// • BRIDGES between neighbouring chains are drawn as straight branches you can jump along, styled like
-//   the chains: grey when untrained, green when both ends are mastered, blue dotted to an open jump.
-import { TREE, STEP } from './data.js';
+// • The edge of the wheel is split into major muscle groups (Back, Core, Legs, Shoulders & Arms).
+// • Each skill is a straight chain from the centre. Its angle comes from the muscles it uses: it sits in
+//   its main group, leaning toward a neighbouring group it also loads (front lever: Back → Core).
+//   Each group's slice of the ring is sized by how many skills live in it.
+// • Steps are evenly spaced, so short (easier) chains finish near the middle and long, hard ones reach
+//   the edge. The skill's name sits at the tip of its branch.
+// • BRIDGES between nearby skills are straight jump branches styled like the chains: grey untrained,
+//   green when both ends are mastered, blue dotted when they lead into an open jump.
+import { TREE, STEP, TREES } from './data.js';
 import { state } from './store.js';
 import { stepStatus, currentStep, treeState, isMastered, allJumps } from './engine.js';
-import { BRIDGES, WHEEL_ORDER } from './biomech.js';
+import { BRIDGES, GROUPS, muscleShare } from './biomech.js';
 import { esc } from './ui.js';
 
-const C = 180; // centre of the 360×360 viewBox
-const R_TRUNK = 26; // radius of the first step
-const R_MAX = 146; // outermost step radius
-const R_START = 9; // where chains leave the hub
-const R_LABEL = 160;
-
-const ORDERED = WHEEL_ORDER.map((id) => TREE[id]);
-const SPOKE_DEG = 360 / ORDERED.length;
-const MAX_STEPS = Math.max(...ORDERED.map((t) => t.steps.length));
-const GAP = (R_MAX - R_TRUNK) / (MAX_STEPS - 1); // same spacing on every chain so rings line up
+const C = 180; // centre of the drawing
+const R_HUB = 9; // where chains leave the hub
+const R_FIRST = 22; // radius of every chain's first step
+const R_MAX = 120; // radius of the last step of the longest chain
+const R_BAND = 192; // muscle-group ring (outside the skill names)
+const MAX_STEPS = Math.max(...TREES.map((t) => t.steps.length));
+const GAP = (R_MAX - R_FIRST) / (MAX_STEPS - 1); // same spacing on every chain
+const SLOT = 360 / TREES.length; // average angle per skill (sets the tap area)
 
 const rad = (deg) => (deg * Math.PI) / 180;
 const pt = (r, a) => [C + r * Math.cos(rad(a)), C + r * Math.sin(rad(a))];
 const f = (n) => n.toFixed(1);
+const norm = (a) => ((((a + 180) % 360) + 360) % 360) - 180;
 
-// Static geometry: angle of each spoke and radius of each step.
+const mainGroup = (tree) => Object.entries(muscleShare(tree.steps)).sort((a, b) => b[1] - a[1])[0][0];
+
+// Each muscle group gets a slice of the ring in proportion to how many skills live in it,
+// with Back centred at the top and the others following clockwise.
+const GEOM = (() => {
+  const counts = Object.fromEntries(GROUPS.map((g) => [g.id, 0]));
+  TREES.forEach((t) => counts[mainGroup(t)]++);
+  const weights = GROUPS.map((g) => counts[g.id] + 0.6);
+  const total = weights.reduce((x, y) => x + y, 0);
+  const spans = weights.map((w) => (360 * w) / total);
+  let start = -90 - spans[0] / 2;
+  const out = {};
+  GROUPS.forEach((g, i) => {
+    out[g.id] = { start, end: start + spans[i], center: start + spans[i] / 2, span: spans[i], i };
+    start += spans[i];
+  });
+  return out;
+})();
+
+// Ideal angle: the centre of the skill's main group, leaning toward a neighbouring group it also uses.
+function idealAngle(tree) {
+  const share = muscleShare(tree.steps);
+  const main = mainGroup(tree);
+  const g = GEOM[main];
+  const n = GROUPS.length;
+  const prev = GROUPS[(g.i - 1 + n) % n].id;
+  const next = GROUPS[(g.i + 1) % n].id;
+  const half = (g.span / 2) * 0.85;
+  const lean = (share[next] - share[prev]) / (share[main] + Math.max(share[next], share[prev]) || 1);
+  return g.center + Math.max(-half, Math.min(half, lean * half));
+}
+
+// Spread each group's skills evenly across its slice, ordered by their ideal angle, so every skill
+// stays inside its own muscle group and chains never crowd each other.
+function placeAngles() {
+  const out = {};
+  for (const g of GROUPS) {
+    const { start, span } = GEOM[g.id];
+    const members = TREES.filter((t) => mainGroup(t) === g.id)
+      .map((t) => ({ id: t.id, ideal: idealAngle(t) }))
+      .sort((x, y) => x.ideal - y.ideal);
+    members.forEach((m, i) => (out[m.id] = norm(start + (span * (i + 0.5)) / members.length)));
+  }
+  return out;
+}
+
+const ANGLES = placeAngles();
 const LAYOUT = Object.fromEntries(
-  ORDERED.map((tree, k) => {
-    const a = -90 + k * SPOKE_DEG;
-    return [tree.id, { a, k, radii: tree.steps.map((_, i) => R_TRUNK + i * GAP), angs: tree.steps.map(() => a), start: pt(R_START, a) }];
-  })
+  TREES.map((t) => [t.id, { a: ANGLES[t.id], radii: t.steps.map((_, i) => R_FIRST + i * GAP), start: pt(R_HUB, ANGLES[t.id]) }])
 );
 
 const posOf = (stepId) => {
   const st = STEP[stepId];
   const l = LAYOUT[st.treeId];
-  return l ? pt(l.radii[st.index], l.angs[st.index]) : [C, C];
+  return l ? pt(l.radii[st.index], l.a) : [C, C];
 };
 
-const adjacent = (t1, t2) => {
-  const d = Math.abs(LAYOUT[t1].k - LAYOUT[t2].k);
-  return d === 1 || d === ORDERED.length - 1;
-};
+const near = (t1, t2) => Math.abs(norm(LAYOUT[t1].a - LAYOUT[t2].a)) <= 75;
 
 const line = (cls, [x1, y1], [x2, y2]) => `<line class="${cls}" x1="${f(x1)}" y1="${f(y1)}" x2="${f(x2)}" y2="${f(y2)}"/>`;
 const poly = (cls, pts) => (pts.length > 1 ? `<polyline class="${cls}" points="${pts.map(([x, y]) => `${f(x)},${f(y)}`).join(' ')}"/>` : '');
@@ -59,12 +102,6 @@ function sector(r1, r2, a1, a2) {
   const [cx, cy] = pt(r2, a2);
   const [dx, dy] = pt(r1, a2);
   return `M${f(ax)},${f(ay)} L${f(bx)},${f(by)} A${r2},${r2} 0 0 1 ${f(cx)},${f(cy)} L${f(dx)},${f(dy)} A${r1},${r1} 0 0 0 ${f(ax)},${f(ay)} Z`;
-}
-
-function lockBadge(x, y) {
-  return `<g class="wh-lockbadge" transform="translate(${f(x)} ${f(y)})">
-    <circle r="7"/><rect x="-2.6" y="-0.6" width="5.2" height="4" rx="0.8"/><path d="M-1.6,-0.6 v-1.4 a1.6,1.6 0 0 1 3.2,0 v1.4"/>
-  </g>`;
 }
 
 // Leading run of mastered steps, the current step (if the tree isn't locked/complete), per-step status.
@@ -87,7 +124,7 @@ function dot(kind, [x, y], scale = 1) {
   return `<circle class="wh-lock" cx="${f(x)}" cy="${f(y)}" r="${2.4 * scale}"/>`;
 }
 
-// Style for a link between two steps, matching how the spokes themselves are drawn.
+// Style for a link between two steps, matching how the chains themselves are drawn.
 function linkClass(a, b, jumpTargets) {
   const ma = isMastered(state, a);
   const mb = isMastered(state, b);
@@ -101,54 +138,69 @@ function jumpSteps() {
   return new Set(allJumps(state).flatMap((j) => [j.target.id, ...j.skipped.map((x) => x.id)]));
 }
 
+function groupRing() {
+  return GROUPS.map((g) => {
+    const { start, end, center } = GEOM[g.id];
+    const a1 = start + 1.5;
+    const a2 = end - 1.5;
+    const bottom = Math.sin(rad(center)) > 0.15;
+    const label = bottom ? arc(R_BAND + 13, a2 - 3, a1 + 3, 0) : arc(R_BAND + 7, a1 + 3, a2 - 3, 1);
+    const [dx1, dy1] = pt(R_FIRST, start);
+    const [dx2, dy2] = pt(R_BAND - 4, start);
+    return `<line class="wh-divider" x1="${f(dx1)}" y1="${f(dy1)}" x2="${f(dx2)}" y2="${f(dy2)}"/>
+      <path class="wh-band" d="${arc(R_BAND, a1, a2, 1)}" style="stroke:${g.color}"/>
+      <path id="wg-${g.id}" d="${label}" fill="none"/>
+      <text class="wh-group" style="fill:${g.color}"><textPath href="#wg-${g.id}" startOffset="50%" text-anchor="middle">${esc(g.name.toUpperCase())}</textPath></text>`;
+  }).join('');
+}
+
 export function skillWheel() {
   const jumpTargets = new Set(allJumps(state).map((j) => j.target.id));
   const inJump = jumpSteps();
 
   let rings = '';
-  for (let r = R_TRUNK; r <= R_MAX + 1; r += GAP) rings += `<circle class="wh-ring" cx="${C}" cy="${C}" r="${r}"/>`;
-  rings += `<circle class="wh-outer" cx="${C}" cy="${C}" r="${R_LABEL - 9}"/>`;
+  for (let i = 1; i < MAX_STEPS; i += 2) rings += `<circle class="wh-ring" cx="${C}" cy="${C}" r="${f(R_FIRST + i * GAP)}"/>`;
 
-  // Faint "ghost" dots between spokes give the wheel its constellation texture.
+  // Faint constellation texture.
   let ghosts = '';
-  ORDERED.forEach((_, k) => {
-    const a = -90 + k * SPOKE_DEG + SPOKE_DEG / 2;
-    for (let r = R_TRUNK + GAP * 1.5; r < R_MAX; r += GAP) {
-      const [x, y] = pt(r, a);
-      ghosts += `<circle class="wh-ghost" cx="${f(x)}" cy="${f(y)}" r="1.1"/>`;
+  for (let k = 0; k < 24; k++) {
+    for (let lv = 1.5; lv < 10; lv += 2) {
+      const [x, y] = pt(R_FIRST + ((lv + (k % 2)) / 10.4) * (R_MAX - R_FIRST), k * 15 + 7);
+      ghosts += `<circle class="wh-ghost" cx="${f(x)}" cy="${f(y)}" r="1"/>`;
     }
-  });
+  }
 
-  // Jump branches between neighbouring chains.
-  const links = BRIDGES.filter((b) => adjacent(STEP[b.a].treeId, STEP[b.b].treeId))
+  // Jump branches between nearby skills.
+  const links = BRIDGES.filter((b) => near(STEP[b.a].treeId, STEP[b.b].treeId))
     .map((b) => line(`${linkClass(b.a, b.b, inJump)} wh-branch`, posOf(b.a), posOf(b.b)))
     .join('');
 
-  const spokes = ORDERED.map((tree) => {
-    const { a, radii, angs, start } = LAYOUT[tree.id];
+  const chains = TREES.map((tree) => {
+    const { a, radii, start } = LAYOUT[tree.id];
     const { ts, cur, lead, dots } = treeDots(tree, jumpTargets);
-    const pts = [start, ...radii.map((r, i) => pt(r, angs[i]))];
+    const pts = [start, ...radii.map((r) => pt(r, a))];
     let paths = poly('wh-guide', pts);
     if (lead > 0) paths += poly('wh-path', pts.slice(0, lead + 1));
     if (cur) paths += line('wh-next', pts[lead], pts[cur.index + 1]);
     const circles = dots.map(({ kind }, i) => dot(kind, pts[i + 1])).join('');
 
-    // Curved label: read left→right on both halves of the wheel.
-    const bottom = Math.sin(rad(a)) > 0.15;
-    const span = SPOKE_DEG / 2 - 2;
-    const labelPath = bottom ? arc(R_LABEL + 7, a + span, a - span, 0) : arc(R_LABEL, a - span, a + span, 1);
-    const label = `<path id="wl-${tree.id}" d="${labelPath}" fill="none"/>
-      <text class="wh-label ${ts}"><textPath href="#wl-${tree.id}" startOffset="50%" text-anchor="middle">${esc(tree.name.toUpperCase())}</textPath></text>`;
-    const lock = ts === 'locked' ? lockBadge(...pt(Math.min(radii[radii.length - 1] + 9, R_LABEL - 9), angs[angs.length - 1])) : '';
-    const hit = `<path class="wh-hit" d="${sector(20, R_LABEL + 16, a - SPOKE_DEG / 2, a + SPOKE_DEG / 2)}"/>`;
-    const title = `${tree.name}: ${ts === 'complete' ? 'mastered' : ts === 'locked' ? 'locked' : `now ${cur.name}`}`;
+    // Skill name at the tip of its branch, written outward along the branch (flipped on the left
+    // half so it always reads left to right). Grey until the skill is mastered, then neon blue.
+    const endR = radii[radii.length - 1];
+    const left = Math.cos(rad(a)) < 0;
+    const [lx, ly] = pt(endR + 7, a);
+    const label = `<text class="wh-skill ${ts}" x="${f(lx)}" y="${f(ly)}" dy="2.8" text-anchor="${left ? 'end' : 'start'}"
+      transform="rotate(${f(left ? a + 180 : a)} ${f(lx)} ${f(ly)})">${esc((tree.short || tree.name).toUpperCase())}</text>`;
+    const tick = '';
+    const hit = `<path class="wh-hit" d="${sector(R_HUB, endR + 70, a - SLOT / 2 + 1, a + SLOT / 2 - 1)}"/>`;
+    const title = `${tree.name}: ${ts === 'complete' ? 'mastered' : `now ${cur?.name || ''}`}`;
 
-    return `<a class="wh-spoke" href="#/tree/${tree.id}" aria-label="${esc(title)}"><title>${esc(title)}</title>${hit}${paths}${circles}${label}${lock}</a>`;
+    return `<a class="wh-spoke" href="#/tree/${tree.id}" aria-label="${esc(title)}"><title>${esc(title)}</title>${hit}${tick}${paths}${circles}${label}</a>`;
   }).join('');
 
   const hub = `<circle class="wh-core" cx="${C}" cy="${C}" r="5"/>`;
 
-  return `<svg class="wheel" viewBox="0 0 360 360" role="img" aria-label="Skill wheel">${rings}${ghosts}<g class="wh-links">${links}</g>${spokes}${hub}</svg>`;
+  return `<svg class="wheel" viewBox="-42 -42 444 444" role="img" aria-label="Skill wheel">${groupRing()}${rings}${ghosts}<g class="wh-links">${links}</g>${chains}${hub}</svg>`;
 }
 
 // Jump branches off a tree: one per related chain (the earliest), at most four.

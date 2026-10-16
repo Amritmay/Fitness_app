@@ -94,7 +94,7 @@ export function render() {
       <div class="logo-mark">${logo()}</div>
       <span class="eyebrow" style="color:var(--accent-text)">Skill trees</span>
       <h1>Your roadmap to<br>calisthenics <span>skills</span></h1>
-      <p class="muted">Nine skill trees that grow with you. Set your starting point once — everything is saved on this device.</p>
+      <p class="muted">${SKILL_TREES.length} skill chains that grow with you. Set your starting point once — everything is saved on this device.</p>
     </header>
     <form id="onboard" class="stack" autocomplete="off">
       <section class="card">

@@ -242,6 +242,130 @@ const RAW_TREES = [
     ],
   },
   {
+    id: 'headstand',
+    name: 'Headstand',
+    category: 'push',
+    blurb: 'A tripod headstand — inverted balance with a wide, stable base.',
+    steps: [
+      step('dolphin', 'Dolphin hold', 'hold', 3, 30, [
+        'Forearms down, hips high in an upside-down V',
+        'Push the floor away through the forearms',
+        'Walk the feet in as you get stronger',
+      ], base),
+      step('tripodtuck', 'Tripod tuck', 'hold', 3, 15, [
+        'Head and hands form a triangle on the floor',
+        'Knees rest on the backs of the elbows',
+        'Most weight through the hands, not the head',
+      ], base),
+      step('wall', 'Wall headstand', 'hold', 3, 30, [
+        'Tripod base a hand-width from the wall',
+        'Legs straight up, heels lightly on the wall',
+        'Squeeze the glutes, ribs tucked',
+      ]),
+      step('free15', 'Freestanding headstand', 'hold', 3, 15, [
+        'Tuck up from the tripod, then extend the legs',
+        'Push through the hands to take weight off the neck',
+        'Learn to roll out safely',
+      ]),
+      step('free30', 'Freestanding headstand', 'hold', 3, 30, [
+        'Straight line from head to toes',
+        'Tiny corrections from the hands',
+        'Breathe calmly',
+      ]),
+      step('free60', 'Freestanding headstand', 'hold', 3, 60, [
+        'Long, relaxed hold',
+        'Keep the neck long and neutral',
+        'Point the toes',
+      ]),
+      step('press', 'Straight-leg press to headstand', 'reps', 3, 3, [
+        'Legs straight and wide, lift them up with control',
+        'Hips over the head before the legs rise',
+        'Mastery!',
+      ]),
+    ],
+  },
+  {
+    id: 'frogstand',
+    name: 'Frog Stand',
+    category: 'push',
+    blurb: 'Balance on your hands with knees resting on the arms — the gateway to hand balancing.',
+    steps: [
+      step('plank', 'High plank', 'hold', 3, 30, [
+        'Hands under shoulders, arms locked',
+        'Body in one straight line',
+        'Spread the fingers and grip the floor',
+      ], base),
+      step('lean', 'Frog lean', 'hold', 3, 15, [
+        'Squat with hands planted shoulder-width in front',
+        'Knees on the backs of the upper arms, toes on the floor',
+        'Shift weight forward onto the hands',
+      ], base),
+      step('onefoot', 'One-foot frog stand', 'hold', 3, 10, [
+        'From the frog lean, lift one foot',
+        'Look slightly forward, not down',
+        'Alternate feet each set',
+      ]),
+      step('15', 'Frog stand', 'hold', 3, 15, [
+        'Both feet off the floor',
+        'Fingertips press to stop tipping forward',
+        'Elbows stay bent, knees on the arms',
+      ]),
+      step('30', 'Frog stand', 'hold', 3, 30, [
+        'Long, calm balance',
+        'Small corrections from the fingers',
+        'Breathe steadily',
+      ]),
+      step('crow15', 'Crow pose', 'hold', 3, 15, [
+        'Knees higher on the triceps, arms straighter',
+        'Hips up, feet together',
+        'Gaze forward',
+      ]),
+      step('crow30', 'Crow pose', 'hold', 3, 30, [
+        'Straightest arms you can hold',
+        'Steady balance',
+        'Mastery!',
+      ]),
+    ],
+  },
+  {
+    id: 'tuckplanche',
+    name: 'Tuck Planche',
+    category: 'push',
+    blurb: 'Straight arms, knees tucked, body floating — the first true planche hold.',
+    steps: [
+      step('lean', 'Planche lean', 'hold', 3, 20, [
+        'Push-up position, fingers turned out',
+        'Lean the shoulders well past the hands',
+        'Protract the shoulders and lock the elbows',
+      ], base),
+      step('pppu', 'Pseudo planche push-ups', 'reps', 3, 8, [
+        'Keep the forward lean throughout',
+        'Hands near the hips',
+        'Protract at the top',
+      ], base),
+      step('safrog', 'Straight-arm frog stand', 'hold', 3, 15, [
+        'Frog stand with the arms locked straight',
+        'Knees pressing into the outside of the arms',
+        'Push the floor away',
+      ]),
+      step('5', 'Tuck planche', 'hold', 3, 5, [
+        'Knees off the arms, tucked to the chest',
+        'Hips at shoulder height',
+        'Shoulders protracted and depressed',
+      ]),
+      step('10', 'Tuck planche', 'hold', 3, 10, [
+        'Same position, longer hold',
+        'Round the upper back',
+        'Keep the elbows locked',
+      ]),
+      step('20', 'Tuck planche', 'hold', 3, 20, [
+        'Solid, controlled hold',
+        'Next stop: advanced tuck',
+        'Mastery!',
+      ]),
+    ],
+  },
+  {
     id: 'planche',
     name: 'Planche',
     category: 'push',
@@ -379,6 +503,49 @@ const RAW_TREES = [
     ],
   },
   {
+    id: 'elbowlever',
+    name: 'Elbow Lever',
+    category: 'core',
+    blurb: 'Balance horizontally on your hands with the elbows dug into your hips.',
+    steps: [
+      step('plank', 'Forearm plank', 'hold', 3, 45, [
+        'Elbows under shoulders, body straight',
+        'Squeeze the glutes, ribs down',
+        'No sagging hips',
+      ], base),
+      step('lean', 'Elbow lever lean', 'hold', 3, 20, [
+        'Hands together, fingers back, elbows into the hips',
+        'Lean forward onto the elbows, toes on the floor',
+        'Find the balance point',
+      ], base),
+      step('assisted', 'Feet-assisted elbow lever', 'hold', 3, 15, [
+        'Lift until only the toes touch lightly',
+        'Body straight and rigid',
+        'Balance over the hands',
+      ]),
+      step('10', 'Elbow lever', 'hold', 3, 10, [
+        'Feet off the floor, body horizontal',
+        'Elbows locked into the hip bones',
+        'Squeeze everything',
+      ]),
+      step('30', 'Elbow lever', 'hold', 3, 30, [
+        'Long, stable hold',
+        'Small corrections from the fingers',
+        'Steady breathing',
+      ]),
+      step('onearm5', 'One-arm elbow lever', 'hold', 3, 5, [
+        'One elbow into the side of the hip',
+        'Free arm out for balance',
+        'Train both sides',
+      ], { side: 'per side' }),
+      step('onearm15', 'One-arm elbow lever', 'hold', 3, 15, [
+        'Rigid body, controlled balance',
+        'Both sides',
+        'Mastery!',
+      ], { side: 'per side' }),
+    ],
+  },
+  {
     id: 'humanflag',
     name: 'Human Flag',
     category: 'core',
@@ -473,6 +640,256 @@ const RAW_TREES = [
         'Try holding a weight in front',
         'Mastery!',
       ], { side: 'per leg' }),
+    ],
+  },
+  {
+    id: 'dragonsquat',
+    name: 'Dragon Squat',
+    category: 'legs',
+    blurb: 'A single-leg squat with the free leg passing behind the standing leg — balance, mobility and strength.',
+    steps: [
+      step('curtsy', 'Curtsy lunges', 'reps', 3, 10, [
+        'Step one leg diagonally behind the other',
+        'Sink until the back knee nearly touches the floor',
+        'Front knee tracks over the toes',
+      ], { ...base, side: 'per leg' }),
+      step('skater', 'Skater squats', 'reps', 3, 6, [
+        'Stand on one leg, the other bent behind you',
+        'Lower until the back knee touches a pad',
+        'Arms forward for balance',
+      ], { side: 'per leg' }),
+      step('assisted', 'Assisted dragon squats', 'reps', 3, 5, [
+        'Hold a pole with one hand',
+        'Thread the free leg behind and across the standing leg',
+        'Sit down onto the standing heel, then stand',
+      ], { side: 'per leg' }),
+      step('negatives', 'Dragon squat negatives', 'reps', 3, 3, [
+        'Lower over 4–5 s without help',
+        'Keep the free leg behind and off the floor',
+        'Stand up with support if needed',
+      ], { side: 'per leg' }),
+      step('first', 'First dragon squats', 'reps', 3, 1, [
+        'Full depth, no support',
+        'Torso upright, arms forward',
+        'Stand up without touching down',
+      ], { side: 'per leg' }),
+      step('5', 'Dragon squats', 'reps', 3, 5, [
+        'Smooth, controlled reps',
+        'Hips square, knee tracking out',
+        'Mastery!',
+      ], { side: 'per leg' }),
+    ],
+  },
+  {
+    id: 'cossack',
+    name: 'Cossack Squat',
+    category: 'legs',
+    blurb: 'A deep side-to-side squat for adductor strength and hip mobility.',
+    steps: [
+      step('lateral', 'Lateral lunges', 'reps', 3, 10, [
+        'Wide stance, step and sit into one hip',
+        'The other leg stays straight',
+        'Chest up, heels down',
+      ], { ...base, side: 'per side' }),
+      step('assisted', 'Assisted Cossack squats', 'reps', 3, 8, [
+        'Hold a pole or door frame',
+        'Sit all the way down on one side, the other leg straight with toes up',
+        'Shift side to side without standing up fully',
+      ], { side: 'per side' }),
+      step('6', 'Cossack squats', 'reps', 3, 6, [
+        'No support, arms forward',
+        'Bottom heel stays down',
+        'Straight leg toes point up',
+      ], { side: 'per side' }),
+      step('12', 'Cossack squats', 'reps', 3, 12, [
+        'Controlled tempo through the bottom',
+        'Hips low as you shift sides',
+        'Breathe out on the way up',
+      ], { side: 'per side' }),
+      step('deep', 'Deep Cossack squats', 'reps', 3, 12, [
+        'Hips to the heel at the bottom',
+        'Pause 2 s in the deepest position',
+        'Mastery!',
+      ], { side: 'per side' }),
+    ],
+  },
+  {
+    id: 'squat',
+    name: 'Bodyweight Squat',
+    short: 'Squat',
+    category: 'legs',
+    blurb: 'The base of all leg training — depth, control and endurance.',
+    steps: [
+      step('box', 'Box squats', 'reps', 3, 15, [
+        'Sit back to a box or chair, then stand',
+        'Feet shoulder-width, knees out',
+        'Touch the box lightly — don’t flop',
+      ], base),
+      step('20', 'Bodyweight squats', 'reps', 3, 20, [
+        'Hips below knees, heels down',
+        'Knees track over toes, chest up',
+        'Stand all the way up',
+      ], base),
+      step('tempo', 'Tempo squats', 'reps', 3, 15, [
+        '3 s down, 1 s pause, 1 s up',
+        'Stay tight through the bottom',
+        'Builds control and strength at depth',
+      ]),
+      step('jump', 'Jump squats', 'reps', 3, 12, [
+        'Squat to parallel, then jump explosively',
+        'Land softly and sink straight into the next rep',
+        'Arms drive up',
+      ]),
+      step('50', 'Bodyweight squats', 'reps', 3, 50, [
+        'Steady rhythm, full depth',
+        'Breathe every rep',
+        'Mastery!',
+      ]),
+    ],
+  },
+  {
+    id: 'splitsquat',
+    name: 'Bulgarian Split Squat',
+    short: 'Split Squat',
+    category: 'legs',
+    blurb: 'Rear-foot-elevated single-leg squats for quads and glutes.',
+    steps: [
+      step('split', 'Split squats', 'reps', 3, 10, [
+        'Long stance, both feet on the floor',
+        'Lower the back knee toward the floor',
+        'Most of the weight on the front leg',
+      ], { ...base, side: 'per leg' }),
+      step('8', 'Bulgarian split squats', 'reps', 3, 8, [
+        'Back foot on a bench, laces down',
+        'Front shin roughly vertical',
+        'Drive up through the front heel',
+      ], { side: 'per leg' }),
+      step('12', 'Bulgarian split squats', 'reps', 3, 12, [
+        'Full depth every rep',
+        'Hips square to the front',
+        'Control the descent',
+      ], { side: 'per leg' }),
+      step('tempo', 'Tempo Bulgarian split squats', 'reps', 3, 10, [
+        '3 s down, 1 s pause at the bottom',
+        'Stay balanced over the front foot',
+        'No bouncing',
+      ], { side: 'per leg' }),
+      step('20', 'Bulgarian split squats', 'reps', 3, 20, [
+        'High-rep strength endurance',
+        'Keep the torso upright',
+        'Mastery!',
+      ], { side: 'per leg' }),
+    ],
+  },
+  {
+    id: 'wallsit',
+    name: 'Wall Sit Calf Raises',
+    short: 'Wall Sit Calf',
+    category: 'legs',
+    blurb: 'Static quad strength combined with soleus (lower calf) work.',
+    steps: [
+      step('30', 'Wall sit', 'hold', 3, 30, [
+        'Back flat on the wall, thighs parallel to the floor',
+        'Knees over ankles',
+        'Arms off the legs',
+      ], base),
+      step('60', 'Wall sit', 'hold', 3, 60, [
+        'Same position, longer hold',
+        'Breathe steadily',
+        'Push the back into the wall',
+      ], base),
+      step('calf15', 'Wall sit calf raises', 'reps', 3, 15, [
+        'Hold the wall sit and raise both heels',
+        'Pause at the top, lower slowly',
+        'Keep thighs parallel the whole time',
+      ]),
+      step('calf30', 'Wall sit calf raises', 'reps', 3, 30, [
+        'Same as before, more reps',
+        'Full range at the ankle',
+        'Don’t let the hips rise',
+      ]),
+      step('single', 'Single-leg wall sit', 'hold', 3, 20, [
+        'Wall sit, then lift one foot off the floor',
+        'Hips level, knee over the ankle',
+        'Mastery!',
+      ], { side: 'per leg' }),
+    ],
+  },
+  {
+    id: 'calfraise',
+    name: 'Standing Calf Raises',
+    short: 'Calf Raises',
+    category: 'legs',
+    blurb: 'Ankle strength and calf endurance — protects the Achilles and improves jumping.',
+    steps: [
+      step('20', 'Calf raises', 'reps', 3, 20, [
+        'Stand tall, rise onto the balls of the feet',
+        'Pause 1 s at the top',
+        'Lower all the way down',
+      ], base),
+      step('step', 'Calf raises off a step', 'reps', 3, 20, [
+        'Heels hanging off a step',
+        'Full stretch at the bottom, full rise at the top',
+        'Hold a wall lightly for balance',
+      ]),
+      step('single', 'Single-leg calf raises', 'reps', 3, 12, [
+        'One foot, flat ground',
+        'Rise as high as possible',
+        'Slow 2 s lowering',
+      ], { side: 'per leg' }),
+      step('deficit', 'Single-leg deficit calf raises', 'reps', 3, 15, [
+        'One foot, heel hanging off a step',
+        'Full range every rep',
+        'Keep the knee straight',
+      ], { side: 'per leg' }),
+      step('25', 'Single-leg calf raises', 'reps', 3, 25, [
+        'Off a step, full range',
+        'Steady tempo',
+        'Mastery!',
+      ], { side: 'per leg' }),
+    ],
+  },
+  {
+    id: 'nordic',
+    name: 'Nordic Curl',
+    category: 'legs',
+    blurb: 'Eccentric hamstring strength — one of the best exercises for knee and hamstring health.',
+    steps: [
+      step('bridge', 'Glute bridges', 'reps', 3, 15, [
+        'Feet flat, drive the hips up',
+        'Squeeze the glutes at the top',
+        'Ribs down, no arching',
+      ], base),
+      step('singlebridge', 'Single-leg glute bridges', 'reps', 3, 12, [
+        'One foot on the floor, the other leg straight',
+        'Hips level as you rise',
+        'Pause at the top',
+      ], { ...base, side: 'per leg' }),
+      step('slides', 'Sliding leg curls', 'reps', 3, 10, [
+        'Heels on a towel or sliders, hips up in a bridge',
+        'Slide the heels out and back in',
+        'Keep the hips high',
+      ]),
+      step('partial', 'Partial Nordic negatives', 'reps', 3, 6, [
+        'Kneel with ankles anchored',
+        'Lower forward as far as you can control, then push back with the hands',
+        'Body straight from knees to head',
+      ]),
+      step('negatives', 'Nordic negatives', 'reps', 3, 5, [
+        'Lower all the way to the floor over 4–6 s',
+        'Catch yourself with the hands',
+        'Hips stay extended',
+      ]),
+      step('3', 'Nordic curls', 'reps', 3, 3, [
+        'Lower under control, then curl back up with the hamstrings',
+        'Minimal push from the hands',
+        'Keep the body straight',
+      ]),
+      step('8', 'Nordic curls', 'reps', 3, 8, [
+        'Full reps, no hands',
+        'Smooth both ways',
+        'Mastery!',
+      ]),
     ],
   },
 ];
