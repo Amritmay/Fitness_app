@@ -8,6 +8,7 @@ import {
 import { DEMANDS, PATTERN, GATES, GATE_INFO, BRIDGES, GROUPS, muscleShare } from '../biomech.js';
 import { esc, fmtTarget, fmtShort, fmtDate, icon, lineChart, tutorialUrl, toast } from '../ui.js';
 import { skillWheel, treeTrack } from '../wheel.js';
+import { skillEta, fmtRange, fmtShortWeeks, CALIBRATION_STEPS } from '../eta.js';
 import { openLogSheet } from './log.js';
 
 // ---- wheel page ----
@@ -173,6 +174,68 @@ function stepBlock(tree, st, jump) {
   </li>`;
 }
 
+// Time estimate for the rest of the skill, at a steady pace. Framed around the next step so a long road
+// still feels like a series of close wins.
+const MAX_FOCUS = 3;
+
+function etaCard(tree) {
+  const eta = skillEta(state, tree);
+  if (!eta) return '';
+  const { next, steps, perWeek } = eta;
+  const cat = CATEGORIES[tree.category].name;
+  const pct = next.progress != null ? Math.round(next.progress * 100) : null;
+  const basis =
+    next.basis === 'data' ? 'Based on your logged sets'
+    : next.basis === 'mixed' ? 'Based on your sets so far and typical progress'
+    : eta.paceSamples ? 'Typical progress, adjusted to your pace'
+    : 'Typical progress — it becomes personal as you log workouts';
+  const cal = eta.calibration;
+  const pctErr = cal.error != null ? Math.max(5, Math.round((cal.error * 100) / 5) * 5) : null;
+  const calNote = cal.calibrated
+    ? `<p class="eta-note good">${icon('check')} Calibrated to you from ${cal.samples} steps you've mastered — past estimates landed within about ±${pctErr}% of the real time.${
+        cal.factor < 0.9 ? " You've been beating the typical times, so these are shorter." : cal.factor > 1.1 ? ' Adjusted to how you actually progress.' : ''}</p>`
+    : `<div class="eta-caution"><strong>Rough estimate — still calibrating</strong>
+        <p>The app learns how you progress from each step you master through regular training. After ${CALIBRATION_STEPS} of them it switches to estimates calibrated to you.</p>
+        <div class="eta-cal"><span class="eta-dots">${Array.from({ length: CALIBRATION_STEPS }, (_, i) => `<i class="${i < cal.samples ? 'on' : ''}"></i>`).join('')}</span><span class="mono small">${cal.samples} of ${CALIBRATION_STEPS} steps</span></div>
+      </div>`;
+  const faster = !cal.calibrated && eta.paceSamples >= 2 && eta.pace < 0.95
+    ? `<p class="eta-note good">You've been mastering steps about ${Math.round((1 / eta.pace - 1) * 100)}% faster than typical — the estimates already include that.</p>` : '';
+  const stalled = eta.stalled
+    ? `<p class="eta-note">Your sets on ${esc(next.st.name)} have held steady lately. That's a normal part of building strength — the step's tips can help, and the estimate updates as soon as your numbers climb.</p>` : '';
+  const focus = eta.focus
+    ? `<div class="eta-focus"><p class="eta-note">${icon('check')} Focus skill — it comes up on every ${esc(cat)} day.</p>
+        <button class="btn ghost small" data-act="unfocus" data-tree="${tree.id}">Remove focus</button></div>`
+    : `<div class="eta-focus"><p class="eta-note">Assumes it comes up on all ${perWeek} of your ${esc(cat)} days a week. Make it a focus skill so it always does.</p>
+        <button class="btn ghost small" data-act="focus" data-tree="${tree.id}">Make focus skill</button></div>`;
+  return `<section class="card eta">
+    <div class="row between"><h2 class="card-title">Time estimate</h2><span class="badge ${cal.calibrated ? 'ok' : 'warn'}">${cal.calibrated ? 'Calibrated' : 'Rough · calibrating'}</span></div>
+    <span class="card-sub">${perWeek}× a week · steady pace</span>
+    ${cal.calibrated ? '' : calNote}
+    <div class="eta-grid">
+      <div class="eta-box next">
+        <span class="label">Next step</span>
+        <strong>${esc(next.st.name)} <span class="mono muted small">${fmtShort(next.st)}</span></strong>
+        <span class="eta-time">${eta.stalled ? 'Building strength' : fmtRange(next.weeks)}</span>
+        ${pct != null ? `<div class="eta-bar" title="Your weakest set vs the target"><span style="width:${pct}%"></span></div><span class="muted small">${pct}% of the target</span>` : ''}
+      </div>
+      <div class="eta-box">
+        <span class="label">Full skill</span>
+        <strong>${esc(tree.name)} <span class="mono muted small">${fmtShort(steps[steps.length - 1].st)}</span></strong>
+        <span class="eta-time">${fmtRange(eta.total)}</span>
+        <span class="muted small">${steps.length} step${steps.length > 1 ? 's' : ''} to go</span>
+      </div>
+    </div>
+    ${steps.length > 1 ? `<details class="eta-steps">
+      <summary>Step by step</summary>
+      <ol>${steps.map((x) => `<li><span class="grow">${esc(x.st.name)} <span class="mono muted small">${fmtShort(x.st)}</span></span><span class="mono">${fmtShortWeeks(x.weeks[0])}</span></li>`).join('')}</ol>
+      <p class="muted small">Roughly when each step is mastered, counting from today.</p>
+    </details>` : ''}
+    ${stalled}${cal.calibrated ? calNote : faster}
+    ${focus}
+    <p class="muted small">${esc(basis)}. Ranges assume you master each step fully, with good form and rest — not rushing.</p>
+  </section>`;
+}
+
 function connectionsCard(tree) {
   const links = BRIDGES.filter((b) => STEP[b.a].treeId === tree.id || STEP[b.b].treeId === tree.id).map((b) => {
     const here = STEP[b.a].treeId === tree.id ? STEP[b.a] : STEP[b.b];
@@ -223,6 +286,7 @@ export function renderTree(id) {
       </div>
       ${treeTrack(tree, { big: true })}
     </div>
+    ${etaCard(tree)}
     ${tree.requires.length ? `<section class="card reqs">
       <h2 class="card-title">Requires</h2>
       <div class="chips wrap">${tree.requires.map((r) => `<a class="chip ${isMastered(state, r) ? 'done' : ''}" href="#/tree/${STEP[r].treeId}">${isMastered(state, r) ? icon('check') : icon('lock')} ${esc(STEP[r].name)} ${STEP[r].treeId !== 'foundation' ? `<small>${fmtShort(STEP[r])}</small>` : ''}</a>`).join('')}</div>
@@ -240,6 +304,19 @@ export const actions = {
     refresh();
   },
   'log-step': (el) => openLogSheet(el.dataset.step),
+  focus: (el) => {
+    const tree = TREE[el.dataset.tree];
+    const focus = state.profile.focus || [];
+    if (focus.length >= MAX_FOCUS) {
+      toast(`You already have ${MAX_FOCUS} focus skills (${esc(focus.map((id) => TREE[id].name).join(', '))}). Remove one first (here or in Profile → Preferences).`);
+      return;
+    }
+    update((s) => (s.profile.focus = [...focus, tree.id]));
+    toast(`${esc(tree.name)} is now a focus skill`);
+  },
+  unfocus: (el) => {
+    update((s) => (s.profile.focus = (s.profile.focus || []).filter((id) => id !== el.dataset.tree)));
+  },
   master: (el) => {
     const st = STEP[el.dataset.step];
     if (!confirm(`Mark "${st.name}" (${fmtTarget(st)}) as mastered?`)) return;
