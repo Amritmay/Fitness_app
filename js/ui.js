@@ -73,6 +73,15 @@ export function closeSheet() {
   fn?.();
 }
 
+// Run `fn` when the open sheet closes (e.g. to stop the microphone).
+export function setSheetClose(fn) {
+  const prev = sheetClose;
+  sheetClose = () => {
+    fn();
+    prev?.();
+  };
+}
+
 export const sheetIsOpen = () => document.getElementById('sheet').classList.contains('open');
 
 // ---- charts (inline SVG, theme-aware via CSS vars) ----
@@ -215,6 +224,7 @@ export function icon(name) {
     bolt: '<path d="M13 2 4 14h7l-1 8 9-12h-7z"/>',
     video: '<rect x="3" y="6" width="13" height="12" rx="2"/><path d="m16 10 5-3v10l-5-3"/>',
     trash: '<path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13"/>',
+    mic: '<rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3"/>',
     flame: '<path d="M12 22c4 0 7-3 7-7 0-3-2-6-4-8 0 3-2 4-3 4 0-3-1-6-4-9 0 4-5 7-5 13 0 4 4 7 9 7z"/>',
   };
   return `<svg class="icon" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${paths[name] || ''}</svg>`;
