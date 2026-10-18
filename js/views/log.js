@@ -5,7 +5,7 @@ import { stepStatus, bestFor, logSession, meetsTarget, levelInfo, totalXp, planC
 import { celebrate } from '../celebrate.js';
 import { canDictate, attachDictation } from '../dictate.js';
 import { esc, fmtShort, openSheet, closeSheet, setSheetClose, toast, treeColor, icon, tutorialUrl } from '../ui.js';
-import { holdStopwatch, startRest, unlockAudio } from '../timer.js';
+import { holdStopwatch, startRest } from '../timer.js';
 
 export function openLogSheet(stepId, { sets, target, support = false } = {}) {
   const st = STEP[stepId];
@@ -87,7 +87,6 @@ export function openLogSheet(stepId, { sets, target, support = false } = {}) {
     }
     const b = e.target.closest('[data-act]');
     if (!b) return;
-    unlockAudio();
     const act = b.dataset.act;
     if (act === 'cancel') return closeSheet();
     if (act === 'add') {

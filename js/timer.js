@@ -17,6 +17,16 @@ export function unlockAudio() {
   ctx();
 }
 
+// Close the sound engine so the microphone can have the audio session (iOS won't hand audio to speech
+// recognition while a sound context is running). The next beep from a tap creates a fresh one.
+export function releaseAudio() {
+  if (!audio) return;
+  try {
+    audio.close();
+  } catch {}
+  audio = null;
+}
+
 export function beep(freq = 880, ms = 160, times = 1) {
   const a = ctx();
   if (!a) return;
@@ -104,6 +114,8 @@ export function initRestPill() {
     renderRest();
   });
 }
+
+export const restRunning = () => Boolean(rest && rest.end > Date.now());
 
 // ---- hold stopwatch ----
 
