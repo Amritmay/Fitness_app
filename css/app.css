@@ -723,17 +723,3 @@ input[type="number"].input::-webkit-inner-spin-button { -webkit-appearance: none
 .support-list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
 .support-list li:first-child { border-top: 0; }
 .sup-next { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-text); white-space: nowrap; }
-
-/* ===== Voice notes ===== */
-.note-wrap { position: relative; }
-.note-wrap textarea { width: 100%; padding-right: 54px; }
-.mic-btn {
-  position: absolute; right: 8px; bottom: 8px; width: 38px; height: 38px; border-radius: 50%;
-  display: grid; place-items: center; cursor: pointer;
-  background: var(--surface-2); border: 1px solid var(--line); color: var(--text);
-}
-.mic-btn .icon { width: 18px; height: 18px; }
-.mic-btn.listening { background: var(--danger); border-color: var(--danger); color: #fff; animation: mic-pulse 1.2s ease-out infinite; }
-@keyframes mic-pulse { 0% { box-shadow: 0 0 0 0 rgb(255 107 107 / 0.55); } 100% { box-shadow: 0 0 0 12px rgb(255 107 107 / 0); } }
-@media (prefers-reduced-motion: reduce) { .mic-btn.listening { animation: none; } }
-.mic-status:empty { display: none; }

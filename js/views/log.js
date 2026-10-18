@@ -3,9 +3,8 @@ import { STEP, TREE } from '../data.js';
 import { state, update, today } from '../store.js';
 import { stepStatus, bestFor, logSession, meetsTarget, levelInfo, totalXp, planComplete, jumpFor } from '../engine.js';
 import { celebrate } from '../celebrate.js';
-import { canDictate, attachDictation } from '../dictate.js';
-import { esc, fmtShort, openSheet, closeSheet, setSheetClose, toast, treeColor, icon, tutorialUrl } from '../ui.js';
-import { holdStopwatch, startRest } from '../timer.js';
+import { esc, fmtShort, openSheet, closeSheet, toast, treeColor, icon, tutorialUrl } from '../ui.js';
+import { holdStopwatch, startRest, unlockAudio } from '../timer.js';
 
 export function openLogSheet(stepId, { sets, target, support = false } = {}) {
   const st = STEP[stepId];
@@ -59,14 +58,7 @@ export function openLogSheet(stepId, { sets, target, support = false } = {}) {
     <div class="row gap">
       <div class="field grow"><label for="log-date">Date</label><input class="input" type="date" id="log-date" value="${today()}" max="${today()}"></div>
     </div>
-    <div class="field">
-      <label for="log-note">Note</label>
-      <div class="note-wrap">
-        <textarea class="input" id="log-note" rows="2" placeholder="${canDictate() ? 'How did it feel? Type or tap the mic' : 'How did it feel? (your keyboard’s mic key works too)'}"></textarea>
-        ${canDictate() ? `<button type="button" class="mic-btn" id="log-mic" aria-pressed="false" aria-label="Speak your note">${icon('mic')}</button>` : ''}
-      </div>
-      <div class="mic-status muted small" id="log-mic-status" aria-live="polite"></div>
-    </div>
+    <div class="field"><label for="log-note">Note</label><textarea class="input" id="log-note" rows="2" placeholder="How did it feel?"></textarea></div>
     <div class="sheet-actions">
       <button class="btn ghost" data-act="cancel">Cancel</button>
       <button class="btn primary" data-act="save">Save workout</button>
@@ -74,9 +66,6 @@ export function openLogSheet(stepId, { sets, target, support = false } = {}) {
 
   let restSecs = restDefault;
   const setsEl = panel.querySelector('#sets');
-  const mic = panel.querySelector('#log-mic');
-  const stopDictation = mic ? attachDictation(mic, panel.querySelector('#log-note'), panel.querySelector('#log-mic-status')) : () => {};
-  setSheetClose(stopDictation);
 
   panel.addEventListener('click', async (e) => {
     const chip = e.target.closest('[data-restv]');
@@ -87,6 +76,7 @@ export function openLogSheet(stepId, { sets, target, support = false } = {}) {
     }
     const b = e.target.closest('[data-act]');
     if (!b) return;
+    unlockAudio();
     const act = b.dataset.act;
     if (act === 'cancel') return closeSheet();
     if (act === 'add') {
