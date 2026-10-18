@@ -1,5 +1,5 @@
 // App state, persisted to localStorage. Everything else is derived from this.
-import { TREES, SKILL_TREES, STEP, MIGRATE_V1 } from './data.js';
+import { TREES, SKILL_TREES, STEP, SAME, MIGRATE_V1 } from './data.js';
 
 const KEY = 'ascend.v1'; // storage key stays the same across data versions
 const listeners = new Set();
@@ -11,7 +11,7 @@ function blank() {
     version: VERSION,
     profile: null, // set by onboarding
     benchmarks: [], // [{ id, date, pullups, pushups, ... }]
-    mastered: {}, // stepId -> { date, source: 'baseline' | 'logged' | 'manual' }
+    mastered: {}, // stepId -> { date, source: 'baseline' | 'logged' | 'manual' | 'transfer' | 'shared', from? }
     sessions: [], // [{ id, date, ts, stepId, sets: [n], note }]
     plans: {}, // 'YYYY-MM-DD' -> { items, goals, restAck, seed }
   };
@@ -52,11 +52,28 @@ export function migrate(s) {
   return s;
 }
 
+// Mastering an exercise anywhere masters every copy of it in other chains with the same or an easier target
+// (source 'shared', from = the step that earned it). Undoing the original undoes the copies. Runs after
+// every change, so it also catches data saved before this existed.
+export function syncShared(s) {
+  const earned = (id) => s.mastered[id] && s.mastered[id].source !== 'shared';
+  for (const [id, m] of Object.entries(s.mastered)) {
+    if (m.source === 'shared' && !earned(m.from)) delete s.mastered[id];
+  }
+  for (const [id, m] of Object.entries(s.mastered)) {
+    if (m.source === 'shared' || !STEP[id]) continue;
+    for (const other of SAME[id] || []) {
+      if (!s.mastered[other]) s.mastered[other] = { date: m.date, source: 'shared', from: id };
+    }
+  }
+  return s;
+}
+
 function load() {
   try {
     const raw = localStorage.getItem(KEY);
     if (raw) {
-      const s = migrate({ ...blank(), version: 1, ...JSON.parse(raw) });
+      const s = syncShared(migrate({ ...blank(), version: 1, ...JSON.parse(raw) }));
       localStorage.setItem(KEY, JSON.stringify(s));
       return s;
     }
@@ -83,6 +100,7 @@ export function subscribe(fn) {
 
 export function update(mutator, { silent = false } = {}) {
   mutator(state);
+  syncShared(state);
   save();
   if (!silent) listeners.forEach((fn) => fn());
 }
@@ -93,7 +111,7 @@ export function refresh() {
 }
 
 export function replaceState(next) {
-  state = migrate({ ...blank(), version: 1, ...next });
+  state = syncShared(migrate({ ...blank(), version: 1, ...next }));
   save();
   listeners.forEach((fn) => fn());
 }

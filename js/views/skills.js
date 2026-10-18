@@ -122,7 +122,8 @@ function patternChips(st) {
 
 function stepBlock(tree, st, jump) {
   const status = stepStatus(state, st.id);
-  const isCur = status === 'available' && !tree.parallel;
+  // Only the first unmastered step is "current" — a later one can be open early when a step was ticked off elsewhere.
+  const isCur = status === 'available' && !tree.parallel && currentStep(state, tree)?.id === st.id;
   const isJump = jump?.target.id === st.id;
   const skippable = Boolean(jump?.skipped.some((x) => x.id === st.id));
   const gate = !isMastered(state, st.id) && GATES[st.id];
@@ -142,6 +143,7 @@ function stepBlock(tree, st, jump) {
       <span class="st-name">${esc(st.name)}</span>
       ${m && m.source === 'baseline' ? '<span class="badge ok">Baseline</span>' : ''}
       ${m && m.source === 'transfer' ? '<span class="badge cur">Transfer</span>' : ''}
+      ${m && m.source === 'shared' ? '<span class="badge ok">Shared</span>' : ''}
       ${isJump ? '<span class="badge cur">⤴ Jump</span>' : ''}
       ${skippable ? '<span class="tag dimtag">Skippable</span>' : ''}
       ${gate && !isJump ? `<span class="tag dimtag" title="${esc(GATE_INFO[gate].why)}">${GATE_INFO[gate].label}</span>` : ''}
@@ -154,6 +156,7 @@ function stepBlock(tree, st, jump) {
         <p>Hit <strong>${fmtTarget(st)}</strong> to master this and skip <strong>${esc(jump.skipped.map((x) => x.name).join(' + '))}</strong>.</p>
         <p class="muted small">Covered by ${esc(evidenceText(jump.evidence).join(' · '))}. Fail it and nothing changes — it just counts as practice.</p>
       </div>` : ''}
+      ${m && m.source === 'shared' && STEP[m.from] ? `<p class="muted small">${icon('check')} Mastered in <a href="#/tree/${STEP[m.from].treeId}">${esc(TREE[STEP[m.from].treeId].name)}</a> — the same exercise (${esc(STEP[m.from].name)} ${fmtShort(STEP[m.from])}), so it counts here too.</p>` : ''}
       <ul class="cue-list">${st.cues.map((c) => `<li>${esc(c)}</li>`).join('')}</ul>
       ${patternChips(st)}
       ${gate ? `<p class="muted small">${icon('lock')} ${esc(GATE_INFO[gate].why)}</p>` : ''}
@@ -167,7 +170,7 @@ function stepBlock(tree, st, jump) {
         <button class="btn primary" data-act="log-step" data-step="${st.id}">${isJump ? '⤴ Take jump test' : `${icon('plus')} Log workout`}</button>
         <a class="btn ghost small" href="${tutorialUrl(st)}" target="_blank" rel="noopener">${icon('video')} Tutorials</a>
         ${status === 'available' ? `<button class="btn ghost small" data-act="master" data-step="${st.id}">I can already do this</button>` : ''}
-        ${m && m.source !== 'logged' ? `<button class="btn ghost small" data-act="unmaster" data-step="${st.id}">Unmark</button>` : ''}
+        ${m && m.source !== 'logged' && m.source !== 'shared' ? `<button class="btn ghost small" data-act="unmaster" data-step="${st.id}">Unmark</button>` : ''}
       </div>
       ${status === 'locked' && !isJump ? `<p class="muted small">Master the previous step to unlock this one. You can still log practice.</p>` : ''}
     </div>` : ''}

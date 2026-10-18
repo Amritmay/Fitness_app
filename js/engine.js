@@ -85,7 +85,8 @@ export const DAY_COMPLETE_XP = 25;
 
 export function totalXp(s) {
   let xp = 0;
-  for (const id of Object.keys(s.mastered)) if (STEP[id]) xp += masteryXp(STEP[id]);
+  // Copies of an exercise mastered in another chain ('shared') don't earn the XP twice.
+  for (const [id, m] of Object.entries(s.mastered)) if (STEP[id] && m.source !== 'shared') xp += masteryXp(STEP[id]);
   for (const x of s.sessions) xp += sessionXp(x);
   for (const date of Object.keys(s.plans)) if (planComplete(s, date)) xp += DAY_COMPLETE_XP;
   return xp;

@@ -111,6 +111,11 @@ export function openLogSheet(stepId, { sets, target, support = false } = {}) {
     update((s) => {
       res = logSession(s, { stepId, sets: values, note, date });
     });
+    // The same exercise in other chains is ticked off too (store.syncShared).
+    const sharedTo = res.mastered
+      ? Object.entries(state.mastered).filter(([, m]) => m.source === 'shared' && m.from === stepId).map(([id]) => TREE[STEP[id].treeId].name)
+      : [];
+    if (sharedTo.length) toast(`Also ticked off in ${esc([...new Set(sharedTo)].join(', '))} — same exercise`);
     closeSheet();
     const lv = levelInfo(totalXp(state));
     const dayComplete = !dayBefore && planComplete(state, today());

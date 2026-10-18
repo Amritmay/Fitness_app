@@ -55,7 +55,7 @@ export function render() {
     .map((b) => ({ label: fmtDate(b.date, { day: 'numeric', month: 'numeric' }), y: b[chartBench] }));
 
   const milestones = Object.entries(s.mastered)
-    .filter(([id, m]) => STEP[id] && m.source !== 'baseline')
+    .filter(([id, m]) => STEP[id] && m.source !== 'baseline' && m.source !== 'shared')
     .sort((a, b) => (a[1].date < b[1].date ? 1 : -1))
     .slice(0, 12);
 

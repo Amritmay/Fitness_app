@@ -912,6 +912,17 @@ export const STEP = Object.fromEntries(TREES.flatMap((t) => t.steps.map((s) => [
 export const SKILL_TREES = TREES;
 export const ALL_STEPS = Object.values(STEP);
 
+// The same exercise can sit in several chains (e.g. planche lean in Tuck Planche and Planche, pull-ups in
+// Pull-up, Muscle-up and Human Flag). SAME[id] lists every other copy that mastering `id` also covers:
+// same exercise (name, reps/hold, per-side), same or fewer sets, same or lower target.
+const exerciseKey = (st) => `${st.name.toLowerCase()}|${st.kind}|${st.side || ''}`;
+export const SAME = Object.fromEntries(
+  ALL_STEPS.map((a) => [
+    a.id,
+    ALL_STEPS.filter((b) => b.id !== a.id && exerciseKey(b) === exerciseKey(a) && b.target <= a.target && b.sets <= a.sets).map((b) => b.id),
+  ])
+);
+
 // Benchmarks recorded on the profile page.
 export const BENCHMARKS = [
   { key: 'pullups', label: 'Max pull-ups', unit: 'reps' },
