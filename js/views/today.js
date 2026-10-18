@@ -133,11 +133,11 @@ function planItem(it, d) {
   const st = STEP[it.stepId];
   const done = itemDone(state, d, it);
   const status = stepStatus(state, st.id);
-  return `<li class="plan-item ${done ? 'done' : ''}">
+  return `<li class="plan-item ${done ? 'done' : ''} ${it.support ? 'support' : ''}">
     <button class="check-btn" data-act="item-toggle" data-id="${it.id}" aria-label="Mark done">${done ? icon('check') : ''}</button>
     <button class="plan-main" data-act="log" data-id="${it.id}">
       <span class="pi-top"><span class="pi-name">${esc(st.name)}</span><span class="pi-target">${fmtShort(st, it.sets, it.target)}</span></span>
-      <span class="pi-meta"><span style="color:${treeColor(st.treeId)}">${esc(TREE[st.treeId].name)}</span> · <span class="why">${esc(it.reason)}</span>${status === 'mastered' && !done ? ' · practice' : ''}</span>
+      <span class="pi-meta"><span style="color:${treeColor(it.support || st.treeId)}">${esc(TREE[it.support || st.treeId].name)}</span> · <span class="why">${esc(it.reason)}</span>${status === 'mastered' && !done && !it.support ? ' · practice' : ''}</span>
     </button>
     <button class="icon-btn subtle" data-act="item-del" data-id="${it.id}" aria-label="Remove">${icon('x')}</button>
   </li>`;
@@ -175,9 +175,9 @@ function openDay(date) {
       <h2>${esc(label)}</h2>
       ${note ? `<div class="muted small">${esc(note)}</div>` : ''}
     </div>
-    ${w.steps.length ? `<ul class="log-list">${w.steps.map((id) => {
-      const st = STEP[id];
-      return `<li><span class="dot" style="background:${treeColor(st.treeId)}"></span><div class="grow"><strong>${esc(st.name)}</strong> <span class="muted small">${esc(TREE[st.treeId].name)}</span></div><span class="mono muted small">${fmtShort(st)}</span></li>`;
+    ${w.steps.length ? `<ul class="log-list">${(w.items || w.steps.map((stepId) => ({ stepId }))).map((it) => {
+      const st = STEP[it.stepId];
+      return `<li><span class="dot" style="background:${treeColor(st.treeId)}"></span><div class="grow"><strong>${esc(st.name)}</strong> <span class="muted small">${it.support ? `Support · ${esc(TREE[it.support].name)}` : esc(TREE[st.treeId].name)}</span></div><span class="mono muted small">${fmtShort(st, it.sets, it.target)}</span></li>`;
     }).join('')}</ul>` : `<p class="muted">${w.past ? 'A rest day.' : 'Recovery day — no training scheduled. Light mobility or a walk is ideal.'}</p>`}
     <div class="sheet-actions"><button class="btn ghost" data-close>Close</button></div>`);
   panel.querySelector('[data-close]').onclick = closeSheet;
@@ -187,7 +187,7 @@ export const actions = {
   day: (el) => openDay(el.dataset.date),
   log: (el) => {
     const it = state.plans[today()].items.find((i) => i.id === el.dataset.id);
-    if (it) openLogSheet(it.stepId, { sets: it.sets, target: it.target });
+    if (it) openLogSheet(it.stepId, { sets: it.sets, target: it.target, support: Boolean(it.support) });
   },
   'item-toggle': (el) =>
     update((s) => {

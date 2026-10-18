@@ -3,7 +3,7 @@ import { TREE, SKILL_TREES, CATEGORIES, STEP, ALL_STEPS } from '../data.js';
 import { state, update, refresh, today } from '../store.js';
 import {
   stepStatus, currentStep, treeProgress, treeState, sessionsFor, bestOf, bestFor, plateau, plateauTips, isMastered,
-  levelInfo, totalXp, performance, allJumps, jumpFor, alsoBuilds,
+  levelInfo, totalXp, performance, allJumps, jumpFor, alsoBuilds, supportPool, supportTarget, supportCeiling, SUPPORT_SETS,
 } from '../engine.js';
 import { DEMANDS, PATTERN, GATES, GATE_INFO, BRIDGES, GROUPS, muscleShare } from '../biomech.js';
 import { esc, fmtTarget, fmtShort, fmtDate, icon, lineChart, tutorialUrl, toast } from '../ui.js';
@@ -236,6 +236,25 @@ function etaCard(tree) {
   </section>`;
 }
 
+// Mastered exercises that keep building alongside this skill (focus skills get one each session).
+function supportCard(tree) {
+  const pool = supportPool(state, tree);
+  if (!pool.length) return '';
+  const focus = (state.profile.focus || []).includes(tree.id);
+  return `<section class="card">
+    <h2 class="card-title">Support work</h2>
+    <div class="card-sub">${focus ? 'One of these comes up each session' : 'Comes up when this is a focus skill'}</div>
+    <ul class="support-list">${pool.map((st) => {
+      const next = supportTarget(state, st);
+      const ceil = supportCeiling(st);
+      const other = st.treeId !== tree.id ? ` <span class="muted small">· ${esc(TREE[st.treeId].name)}</span>` : '';
+      return `<li><div class="grow"><strong>${esc(st.name)}</strong>${other}<div class="muted small">Mastered at ${fmtShort(st)} · builds toward ${fmtShort(st, SUPPORT_SETS, ceil)}</div></div>
+        <span class="mono sup-next">${next >= ceil ? 'HOLD ' : 'NEXT '}${fmtShort(st, SUPPORT_SETS, next)}</span></li>`;
+    }).join('')}</ul>
+    <p class="muted small">2 sets after your main exercises. Each time you hit the target it rises a little, so the foundation keeps growing while you work on the skill.</p>
+  </section>`;
+}
+
 function connectionsCard(tree) {
   const links = BRIDGES.filter((b) => STEP[b.a].treeId === tree.id || STEP[b.b].treeId === tree.id).map((b) => {
     const here = STEP[b.a].treeId === tree.id ? STEP[b.a] : STEP[b.b];
@@ -287,6 +306,7 @@ export function renderTree(id) {
       ${treeTrack(tree, { big: true })}
     </div>
     ${etaCard(tree)}
+    ${supportCard(tree)}
     ${tree.requires.length ? `<section class="card reqs">
       <h2 class="card-title">Requires</h2>
       <div class="chips wrap">${tree.requires.map((r) => `<a class="chip ${isMastered(state, r) ? 'done' : ''}" href="#/tree/${STEP[r].treeId}">${isMastered(state, r) ? icon('check') : icon('lock')} ${esc(STEP[r].name)} ${STEP[r].treeId !== 'foundation' ? `<small>${fmtShort(STEP[r])}</small>` : ''}</a>`).join('')}</div>

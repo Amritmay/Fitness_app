@@ -1,7 +1,7 @@
 // Derived logic: unlocks, XP/levels, plateau detection, daily plans, streaks.
 import { TREES, TREE, STEP, SKILL_TREES, ALL_STEPS } from './data.js';
 import { today, addDays, daysBetween, weekStart, uid, fromKey } from './store.js';
-import { PATTERNS, DEMANDS, GATES, JUMP_TOLERANCE, MAX_SKIP, benchmarkCapacity } from './biomech.js';
+import { PATTERNS, DEMANDS, GATES, BRIDGES, JUMP_TOLERANCE, MAX_SKIP, benchmarkCapacity } from './biomech.js';
 
 // ---- status ----
 
@@ -173,7 +173,11 @@ export function capacity(s) {
     if (v > cap[p].value) cap[p] = { value: v, from: { benchmark: true } };
   }
   for (const st of ALL_STEPS) {
-    if (isMastered(s, st.id)) bump(DEMANDS[st.id], 1, { stepId: st.id });
+    if (isMastered(s, st.id)) {
+      // Going past the mastery target (e.g. in support work) adds a little on top: up to +15% at 1.5× the target.
+      const over = Math.max(0, bestFor(s, st.id) / st.target - 1);
+      bump(DEMANDS[st.id], 1 + Math.min(0.15, over * 0.3), { stepId: st.id });
+    }
     else {
       // Partial credit for what you've already shown in practice.
       const best = bestFor(s, st.id);
@@ -353,7 +357,7 @@ export function dayInfo(s, date) {
 // demand) at a real intensity. Minor demands — e.g. the core work in a wall handstand — don't count.
 const HARD = 3;
 
-function mainPatterns(stepId) {
+export function mainPatterns(stepId) {
   const d = DEMANDS[stepId] || {};
   const top = Math.max(0, ...Object.values(d));
   return Object.entries(d).filter(([, v]) => v >= HARD && v > top * 0.75).map(([p]) => p);
@@ -376,6 +380,7 @@ function needsRecovery(stepId, recovering) {
 // Session order: jump tests and balance/technique first (fresh nervous system), then strength, then foundation work.
 function orderKey(it) {
   const st = STEP[it.stepId];
+  if (it.support) return 4;
   if (it.reason.startsWith('Jump test')) return 0;
   if (GATES[st.id] === 'technique' || st.treeId === 'handstand') return 1;
   return st.base ? 3 : 2;
@@ -401,8 +406,92 @@ export function itemsForMinutes(min) {
   return 6;
 }
 
-export function makeItem(st, reason, sets = st.sets, target = st.target) {
-  return { id: uid(), stepId: st.id, sets, target, reason, manualDone: false };
+export function makeItem(st, reason, sets = st.sets, target = st.target, extra = {}) {
+  return { id: uid(), stepId: st.id, sets, target, reason, manualDone: false, ...extra };
+}
+
+// ---- support work ----
+
+// Focus skills also get one exercise you've already mastered — from earlier in the chain or a linked chain —
+// for 2 sets, with a target that keeps rising past its mastery target. The foundation keeps growing alongside
+// the skill instead of stopping at "good enough to pass". It never affects unlocking.
+export const SUPPORT_SETS = 2;
+const SUPPORT_CEILING = 1.5; // × the mastery target; after that it's held there as maintenance
+const SUPPORT_POOL = 3; // exercises each skill rotates between
+
+export const supportCeiling = (st) => Math.max(st.target + 1, Math.round(st.target * SUPPORT_CEILING));
+
+// Weakest of your best SUPPORT_SETS sets in the last session on the step (0 if never trained).
+function lastSupportLevel(s, st) {
+  const last = sessionsFor(s, st.id).at(-1);
+  if (!last) return 0;
+  const top = [...last.sets].sort((a, b) => b - a);
+  return top[Math.min(SUPPORT_SETS, top.length) - 1] || 0;
+}
+
+// Next target: a bit more than last time (about +10%), between the mastery target and the ceiling.
+export function supportTarget(s, st) {
+  const base = lastSupportLevel(s, st);
+  const inc = st.kind === 'hold' ? Math.max(2, Math.round(base * 0.1)) : Math.max(1, Math.round(base * 0.1));
+  return Math.min(supportCeiling(st), Math.max(st.target, base ? base + inc : st.target));
+}
+
+// How much of what `cur` demands a support exercise trains.
+function supportRelevance(cand, cur) {
+  const dc = DEMANDS[cand.id] || {};
+  return Object.entries(DEMANDS[cur.id] || {}).reduce((r, [p, v]) => r + Math.min(v, dc[p] || 0), 0);
+}
+
+// Mastered exercises that build what the current step needs: earlier steps in the chain, plus mastered
+// partners of those steps in linked chains. The same exercise appearing twice (e.g. pull-ups) counts once.
+export function supportPool(s, tree, cur = currentStep(s, tree)) {
+  if (!cur) return [];
+  const byName = new Map();
+  const add = (st) => {
+    if (!isMastered(s, st.id) || (st.kind === 'reps' && st.target <= 1)) return; // "first rep" steps aren't support work
+    const key = st.name.toLowerCase();
+    const prev = byName.get(key);
+    if (!prev || st.target > prev.target || (st.target === prev.target && st.treeId === tree.id && prev.treeId !== tree.id)) byName.set(key, st);
+  };
+  tree.steps.slice(0, cur.index).forEach(add);
+  for (const b of BRIDGES) {
+    for (const [here, there] of [[b.a, b.b], [b.b, b.a]]) {
+      if (STEP[here].treeId === tree.id && STEP[here].index <= cur.index) add(STEP[there]);
+    }
+  }
+  const all = [...byName.values()];
+  const top = Math.max(0, ...all.map((st) => supportRelevance(st, cur)));
+  // Only exercises that train a fair share of what the step needs (e.g. not a grip hang for chest-to-bar pulls).
+  const cands = all.filter((st) => supportRelevance(st, cur) > 0 && supportRelevance(st, cur) >= 0.3 * top);
+  // One per main pattern of the current step (so a muscle-up gets pulling *and* pressing), then by relevance.
+  const d = DEMANDS[cur.id] || {};
+  const main = mainPatterns(cur.id).length ? mainPatterns(cur.id) : Object.keys(d).sort((a, b) => d[b] - d[a]).slice(0, 1);
+  const pool = [];
+  for (const p of main) {
+    const best = cands.filter((c) => (DEMANDS[c.id] || {})[p] && !pool.includes(c))
+      .sort((a, b) => DEMANDS[b.id][p] - DEMANDS[a.id][p] || b.index - a.index)[0];
+    if (best) pool.push(best);
+  }
+  for (const c of cands.sort((a, b) => supportRelevance(b, cur) - supportRelevance(a, cur) || b.index - a.index)) {
+    if (pool.length >= SUPPORT_POOL) break;
+    if (!pool.includes(c)) pool.push(c);
+  }
+  return pool.slice(0, SUPPORT_POOL);
+}
+
+// Today's support exercise for a skill: the one in its pool you've gone longest without, so each comes back
+// about weekly. Ones already at their ceiling drop behind the rest.
+function pickSupport(s, tree, date, recovering, takenNames) {
+  const pool = supportPool(s, tree).filter((st) => !takenNames.has(st.name.toLowerCase()) && !needsRecovery(st.id, recovering));
+  let best = null;
+  for (const st of pool) {
+    const last = sessionsFor(s, st.id).filter((x) => x.date < date).at(-1);
+    const gap = last ? Math.min(14, daysBetween(last.date, date)) : 14;
+    const atCeiling = lastSupportLevel(s, st) >= supportCeiling(st);
+    const score = gap - (atCeiling ? 7 : 0) + 0.1 * pool.length - 0.1 * pool.indexOf(st);
+    if (!best || score > best.score) best = { st, score };
+  }
+  return best?.st || null;
 }
 
 export function generatePlan(s, date = today(), seed = Math.floor(Math.random() * 1e9), { type: forceType } = {}) {
@@ -498,21 +587,39 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
   const capPerCat = cats.size > 1 && cats.size < 4 ? Math.ceil(max / cats.size) : max;
   const perCat = {};
   kept.forEach((it) => (perCat[STEP[it.stepId].cat] = (perCat[STEP[it.stepId].cat] || 0) + 1));
+  // The same exercise can sit in several chains (e.g. hollow body hold) — only do it once a day.
+  const names = new Set(kept.map((it) => STEP[it.stepId].name.toLowerCase()));
   const picked = [];
+  const take = (c) => {
+    picked.push(c);
+    names.add(c.st.name.toLowerCase());
+  };
   for (const c of ordered) {
     if (picked.length >= max) break;
+    if (names.has(c.st.name.toLowerCase())) continue;
     if (c.inSplit && (perCat[c.st.cat] || 0) >= capPerCat) continue;
     perCat[c.st.cat] = (perCat[c.st.cat] || 0) + 1;
-    picked.push(c);
+    take(c);
   }
   // Top up if the caps left empty slots.
-  for (const c of ordered) if (picked.length < max && !picked.includes(c)) picked.push(c);
+  for (const c of ordered) if (picked.length < max && !picked.includes(c) && !names.has(c.st.name.toLowerCase())) take(c);
 
   const items = picked.map(({ st, reason }) => {
     const pl = plateau(s, st.id, date);
     if (pl) return makeItem(st, 'Plateau — volume block', 5, Math.max(1, Math.round(pl.best * 0.7)));
     return makeItem(st, reason);
   });
+
+  // Support work for the focus skills trained today (2 sets, after the main exercises).
+  const supported = new Set(kept.filter((it) => it.support).map((it) => it.support));
+  const trainedToday = new Set([...kept, ...items].filter((it) => !it.support).map((it) => STEP[it.stepId].treeId));
+  for (const tree of SKILL_TREES) {
+    if (!focus.has(tree.id) || !trainedToday.has(tree.id) || supported.has(tree.id)) continue;
+    const st = pickSupport(s, tree, date, recovering, names);
+    if (!st) continue;
+    names.add(st.name.toLowerCase());
+    items.push(makeItem(st, 'Support work', SUPPORT_SETS, supportTarget(s, st), { support: tree.id }));
+  }
   const all = [...kept, ...items].sort((a, b) => orderKey(a) - orderKey(b));
 
   return { items: all, type, goals: old?.goals || [], restAck: old?.restAck || false, seed, createdAt: Date.now() };
@@ -529,6 +636,7 @@ export function weekPlan(s, date = today()) {
     const info = dayInfo(s, d);
     const logged = s.sessions.filter((x) => x.date === d).map((x) => x.stepId);
     let steps = [];
+    let items = null;
     let type = info.type;
     if (d < date) steps = [...new Set(logged)];
     else {
@@ -537,15 +645,17 @@ export function weekPlan(s, date = today()) {
       if (plan && (info.training || d === date)) {
         type = plan.type || type;
         steps = plan.items.map((it) => it.stepId);
+        items = plan.items;
         // Pretend the session happens so the next day's recovery is realistic.
         for (const it of plan.items) {
           if (!sim.sessions.some((x) => x.date === d && x.stepId === it.stepId)) {
-            sim.sessions.push({ id: `sim-${d}-${it.stepId}`, date: d, ts: 0, stepId: it.stepId, sets: Array(it.sets).fill(0), note: '' });
+            // Support sets are simulated as hit, so later previews show the target climbing.
+            sim.sessions.push({ id: `sim-${d}-${it.stepId}`, date: d, ts: fromKey(d).getTime() + 43200000, stepId: it.stepId, sets: Array(it.sets).fill(it.support ? it.target : 0), note: '' });
           }
         }
       }
     }
-    days.push({ date: d, training: info.training, type, steps, trained: logged.length > 0, isToday: d === date, past: d < date });
+    days.push({ date: d, training: info.training, type, steps, items, trained: logged.length > 0, isToday: d === date, past: d < date });
   }
   return days;
 }

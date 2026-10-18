@@ -716,3 +716,10 @@ input[type="number"].input::-webkit-inner-spin-button { -webkit-appearance: none
 .eta-focus { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
 .eta-focus .eta-note { flex: 1; min-width: 200px; }
 @media (max-width: 340px) { .eta-grid { grid-template-columns: 1fr; } }
+
+/* ===== Support work ===== */
+.plan-item.support .pi-name::before { content: '↳ '; color: var(--muted); }
+.support-list { display: flex; flex-direction: column; }
+.support-list li { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.support-list li:first-child { border-top: 0; }
+.sup-next { font-size: 11.5px; font-weight: 700; letter-spacing: 0.08em; color: var(--accent-text); white-space: nowrap; }

@@ -6,7 +6,7 @@ import { celebrate } from '../celebrate.js';
 import { esc, fmtShort, openSheet, closeSheet, toast, treeColor, icon, tutorialUrl } from '../ui.js';
 import { holdStopwatch, startRest, unlockAudio } from '../timer.js';
 
-export function openLogSheet(stepId, { sets, target } = {}) {
+export function openLogSheet(stepId, { sets, target, support = false } = {}) {
   const st = STEP[stepId];
   const tree = TREE[st.treeId];
   const status = stepStatus(state, stepId);
@@ -32,12 +32,14 @@ export function openLogSheet(stepId, { sets, target } = {}) {
       <h2>${esc(st.name)}</h2>
       <div class="row gap-s wrap">
         <span class="pill"><i></i>Goal ${fmtShort(st, nSets, goal)}</span>
-        ${goal !== st.target || nSets !== st.sets ? `<span class="pill warn"><i></i>Unlock ${fmtShort(st)}</span>` : ''}
+        ${support ? `<span class="pill"><i></i>Support · keep building</span>`
+          : goal !== st.target || nSets !== st.sets ? `<span class="pill warn"><i></i>Unlock ${fmtShort(st)}</span>` : ''}
         <span class="pill ok"><i></i>Best ${best ? `${best}${hold ? 'S' : ' REPS'}` : '—'}</span>
         ${isJump ? `<span class="pill"><i></i>⤴ Jump test · skips ${jump.skipped.length}</span>` : ''}
       </div>
       ${isJump ? `<span class="muted small">Hit ${fmtShort(st)} to also credit ${esc(jump.skipped.map((x) => x.name).join(' + '))}.</span>` : ''}
-      ${status === 'mastered' ? `<span class="muted small">Already mastered — this logs as practice.</span>` : ''}
+      ${support ? `<span class="muted small">Support work: you've mastered this — now take it past ${fmtShort(st)}. The target rises a little each time you hit it. It doesn't affect unlocking.</span>`
+        : status === 'mastered' ? `<span class="muted small">Already mastered — this logs as practice.</span>` : ''}
       ${status === 'locked' && !isJump ? `<span class="muted small">Still locked — this logs as practice.</span>` : ''}
       <a class="small" href="${tutorialUrl(st)}" target="_blank" rel="noopener">${icon('video')} Watch tutorials</a>
     </div>
@@ -119,7 +121,9 @@ export function openLogSheet(stepId, { sets, target } = {}) {
       return;
     }
     toast(`${icon('bolt')} +${res.xp} XP`);
-    if (isJump) toast('Jump test not passed — logged as practice. Keep building!');
+    if (support) {
+      if (values.filter((v) => v >= goal).length >= nSets) toast('Support target hit — it goes up next time');
+    } else if (isJump) toast('Jump test not passed — logged as practice. Keep building!');
     else if (stepStatus(state, stepId) === 'available' && !meetsTarget(st, values)) {
       const hit = values.filter((v) => v >= st.target).length;
       if (hit) toast(`${hit}/${st.sets} sets at target — close!`);
