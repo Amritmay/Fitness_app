@@ -14,7 +14,7 @@
 // Until CALIBRATION_STEPS steps are in, estimates are shown as rough.
 import { TREE, STEP, ALL_STEPS } from './data.js';
 import { today, daysBetween } from './store.js';
-import { isMastered, currentStep, sessionsFor, capacity, scheduleFor, DAY_TYPES } from './engine.js';
+import { isMastered, currentStep, sessionsFor, capacity, scheduleFor, DAY_TYPES, unmetNeeds } from './engine.js';
 import { DEMANDS, GATES, stepLevel } from './biomech.js';
 
 const NEW_PATTERN_CLIMB = 2; // a pattern the chain hasn't trained yet counts as at most this big a jump
@@ -201,7 +201,7 @@ export function sessionsPerWeek(s, tree) {
 
 // ---- the estimate ----
 
-export function skillEta(s, tree, date = today()) {
+export function skillEta(s, tree, date = today(), depth = 0) {
   const cur = currentStep(s, tree);
   if (!cur) return null;
   const perWeek = sessionsPerWeek(s, tree);
@@ -218,6 +218,14 @@ export function skillEta(s, tree, date = today()) {
   let stalled = false;
   for (const st of tree.steps.slice(cur.index)) {
     if (isMastered(s, st.id)) continue;
+    // A step waiting on another chain (step.needs) can't start before that chain reaches it.
+    let waitingOn = null;
+    for (const n of depth < 2 ? unmetNeeds(s, st) : []) {
+      const at = skillEta(s, TREE[n.treeId], date, depth + 1)?.steps.find((x) => x.st.id === n.id);
+      if (!at) continue;
+      waitingOn ||= n;
+      low = Math.max(low, at.weeks[0] * Math.max(1, perWeek * ADHERENCE));
+    }
     // Strength from other chains shortens a step; this chain's own earlier steps are counted by climb().
     const typical = typicalSessions(st, cap) * pace;
     let sessions = typical;
@@ -246,6 +254,7 @@ export function skillEta(s, tree, date = today()) {
       sessions,
       basis,
       progress,
+      waitingOn,
       weeks: [toWeeks(low, perWeek), toWeeks(high, perWeek)],
     });
   }

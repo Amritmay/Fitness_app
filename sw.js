@@ -1,6 +1,6 @@
 // Offline support: network-first (so edits show up immediately), falling back to cache.
 // Bump CACHE when you add files so old caches are cleaned up.
-const CACHE = 'ascend-v15';
+const CACHE = 'ascend-v16';
 const FILES = [
   './',
   './index.html',

@@ -11,11 +11,18 @@ export function treeRequiresMet(s, tree) {
   return tree.requires.every((id) => isMastered(s, id));
 }
 
+// Steps elsewhere that `st` still waits for (step.needs): an exercise with its own build-up in another
+// chain is only opened once you've reached it there.
+export function unmetNeeds(s, st) {
+  return (st.needs || []).filter((id) => !isMastered(s, id)).map((id) => STEP[id]);
+}
+
 // 'mastered' | 'available' | 'locked'
 export function stepStatus(s, stepId) {
   if (isMastered(s, stepId)) return 'mastered';
   const st = STEP[stepId];
   const tree = TREE[st.treeId];
+  if (unmetNeeds(s, st).length) return 'locked';
   if (tree.parallel) return 'available';
   if (st.index === 0) return treeRequiresMet(s, tree) ? 'available' : 'locked';
   return isMastered(s, tree.steps[st.index - 1].id) ? 'available' : 'locked';
@@ -203,6 +210,8 @@ export function jumpFor(s, tree, cap = capacity(s)) {
     if (isMastered(s, target.id)) continue;
     const skipped = tree.steps.slice(cur.index, i).filter((st) => !isMastered(s, st.id));
     if (skipped.some((st) => GATES[st.id])) break;
+    // Never jump into or past a step that's waiting on another chain.
+    if ([...skipped, target].some((st) => unmetNeeds(s, st).length)) break;
     if (![...skipped, target].every((st) => covers(cap, st.id))) break;
     best = { tree, target, skipped, evidence: evidenceFor(s, target, cap) };
   }
@@ -531,6 +540,14 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
     return { items: [...kept, ...items], type, goals: old?.goals || [], restAck: old?.restAck || false, seed, createdAt: Date.now() };
   }
 
+  // A focus skill whose next step waits on another chain (e.g. Human Flag's pull-ups on First pull-ups):
+  // that chain gets the focus priority instead, so the wait is as short as possible.
+  const unlocks = new Map(); // treeId -> name of the focus skill it unlocks
+  for (const id of focus) {
+    const cur = TREE[id] && currentStep(s, TREE[id]);
+    if (cur) for (const n of unmetNeeds(s, cur)) if (!unlocks.has(n.treeId)) unlocks.set(n.treeId, TREE[id].name);
+  }
+
   const cap = capacity(s);
   for (const tree of SKILL_TREES) {
     if (keptTrees.has(tree.id)) continue;
@@ -548,12 +565,15 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
     if (focus.has(tree.id)) {
       score += 3;
       reason = 'Focus skill';
+    } else if (unlocks.has(tree.id)) {
+      score += 3;
+      reason = `Unlocks ${unlocks.get(tree.id)}`;
     }
     // Two-for-one: exercises that also build your other focus skills rank higher.
     const twoForOne = alsoBuilds(st.id).filter((t) => focus.has(t.id));
     if (twoForOne.length) {
       score += 0.6 * twoForOne.length;
-      if (reason !== 'Focus skill') reason = `Also builds ${twoForOne[0].name}`;
+      if (reason !== 'Focus skill' && !unlocks.has(tree.id)) reason = `Also builds ${twoForOne[0].name}`;
     }
     if (jump) {
       score += 0.8;
@@ -562,7 +582,7 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
     const best = bestFor(s, st.id);
     if (best >= st.target * 0.8) {
       score += 1;
-      if (!focus.has(tree.id) && !jump) reason = 'Close to unlock';
+      if (!focus.has(tree.id) && !unlocks.has(tree.id) && !jump) reason = 'Close to unlock';
     }
     // Rotation: chains you haven't trained for a while move up; never-trained chains get their turn first.
     const last = lastTrained(s, tree.id);
@@ -577,7 +597,7 @@ export function generatePlan(s, date = today(), seed = Math.floor(Math.random() 
   // Multi-group days take the best exercise from each group before doubling up on any one group.
   const max = Math.max(0, itemsForMinutes(p.sessionMinutes || 45) - kept.length);
   const inSplit = candidates.filter((c) => c.inSplit);
-  const focused = inSplit.filter((c) => focus.has(c.tree.id));
+  const focused = inSplit.filter((c) => focus.has(c.tree.id) || unlocks.has(c.tree.id));
   const covered = new Set(focused.map((c) => c.tree.category));
   const firsts = [...cats].filter((cat) => !covered.has(cat)).map((cat) => inSplit.find((c) => c.tree.category === cat)).filter(Boolean);
   firsts.sort((a, b) => b.score - a.score);

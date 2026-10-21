@@ -13,6 +13,9 @@
 //   side   – optional label such as 'per leg' / 'per side'
 //   cues   – short form tips
 //   base   – true for the chain's foundation exercises
+//   needs  – steps in other chains that must be mastered first: for an exercise that has its own
+//            build-up elsewhere (e.g. Human Flag's pull-ups wait for First pull-ups in the Pull-up chain),
+//            so every exercise is reached one step at a time
 
 export const CATEGORIES = {
   pull: { name: 'Pull', color: 'var(--c-pull)' },
@@ -108,12 +111,12 @@ const RAW_TREES = [
         'Arms straight, shoulders active',
         'This grip makes the transition possible',
       ], base),
-      DIPS,
+      { ...DIPS, needs: ['handstand-pushups'] }, // push-ups 3×12 before dips
       step('pullups', 'Pull-ups', 'reps', 3, 8, [
         'Full range, chin over the bar',
         'Try them with a false grip as you get stronger',
         'Control the descent',
-      ], base),
+      ], { ...base, needs: ['pullup-5'] }), // 3×5 in the Pull-up chain first
       step('c2b', 'Chest-to-bar pull-ups', 'reps', 3, 5, [
         'Pull until your lower chest touches the bar',
         'Lean back slightly at the top',
@@ -342,7 +345,7 @@ const RAW_TREES = [
         'Keep the forward lean throughout',
         'Hands near the hips',
         'Protract at the top',
-      ], base),
+      ], { ...base, needs: ['planche-pushups'] }), // regular push-ups 3×12 first
       step('safrog', 'Straight-arm frog stand', 'hold', 3, 15, [
         'Frog stand with the arms locked straight',
         'Knees pressing into the outside of the arms',
@@ -560,8 +563,8 @@ const RAW_TREES = [
         'The top arm of a flag pulls — build it here',
         'Full range, controlled',
         'Rest 2 min between sets',
-      ], base),
-      PIKE_PUSHUPS,
+      ], { ...base, needs: ['pullup-first'] }), // first pull-ups in the Pull-up chain first
+      { ...PIKE_PUSHUPS, needs: ['handstand-pushups'] }, // push-ups 3×12 first, as in the Handstand chain
       step('vertical', 'Vertical flag', 'hold', 3, 10, [
         'Grip a pole: top hand pulls, bottom hand pushes',
         'Body vertical, feet off the ground',
@@ -909,6 +912,7 @@ export const TREES = RAW_TREES.map((tree) => ({
 
 export const TREE = Object.fromEntries(TREES.map((t) => [t.id, t]));
 export const STEP = Object.fromEntries(TREES.flatMap((t) => t.steps.map((s) => [s.id, s])));
+for (const st of Object.values(STEP)) for (const id of st.needs || []) if (!STEP[id]) console.error(`${st.id} needs unknown step ${id}`);
 export const SKILL_TREES = TREES;
 export const ALL_STEPS = Object.values(STEP);
 

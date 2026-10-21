@@ -2,7 +2,7 @@
 import { TREE, SKILL_TREES, CATEGORIES, STEP, ALL_STEPS } from '../data.js';
 import { state, update, refresh, today } from '../store.js';
 import {
-  stepStatus, currentStep, treeProgress, treeState, sessionsFor, bestOf, bestFor, plateau, plateauTips, isMastered,
+  stepStatus, currentStep, treeProgress, treeState, unmetNeeds, sessionsFor, bestOf, bestFor, plateau, plateauTips, isMastered,
   levelInfo, totalXp, performance, allJumps, jumpFor, alsoBuilds, supportPool, supportTarget, supportCeiling, SUPPORT_SETS,
 } from '../engine.js';
 import { DEMANDS, PATTERN, GATES, GATE_INFO, BRIDGES, GROUPS, muscleShare } from '../biomech.js';
@@ -31,11 +31,15 @@ export function jumpsCard() {
   </section>`;
 }
 
+// What a step is waiting on in other chains, e.g. "Pull-up: First pull-ups 3 × 1".
+const needLabel = (st) => `${TREE[st.treeId].name}: ${st.name} ${fmtShort(st)}`;
+
 function reqLabel(tree) {
-  return tree.requires
-    .filter((id) => !isMastered(state, id))
-    .map((id) => `${STEP[id].name}${STEP[id].treeId !== 'foundation' ? ` ${fmtShort(STEP[id])}` : ''}`)
-    .join(', ');
+  const cur = currentStep(state, tree);
+  return [
+    ...tree.requires.filter((id) => !isMastered(state, id)).map((id) => `${STEP[id].name} ${fmtShort(STEP[id])}`),
+    ...(cur ? unmetNeeds(state, cur).map(needLabel) : []),
+  ].join(', ');
 }
 
 function treeRow(tree) {
@@ -44,7 +48,7 @@ function treeRow(tree) {
   const cur = currentStep(state, tree);
   const sub =
     ts === 'complete' ? 'Tree mastered'
-    : ts === 'locked' ? `Needs ${reqLabel(tree)}`
+    : ts === 'locked' ? `Waiting on ${reqLabel(tree)}`
     : `Next up: ${cur.name}`;
   return `<a class="tree-row ${ts}" href="#/tree/${tree.id}">
     <div class="grow">
@@ -127,6 +131,7 @@ function stepBlock(tree, st, jump) {
   const isJump = jump?.target.id === st.id;
   const skippable = Boolean(jump?.skipped.some((x) => x.id === st.id));
   const gate = !isMastered(state, st.id) && GATES[st.id];
+  const needs = status === 'locked' ? unmetNeeds(state, st) : [];
   const open = (expanded[tree.id] ?? defaultOpen(tree)) === st.id;
   const list = sessionsFor(state, st.id);
   const best = bestFor(state, st.id);
@@ -146,10 +151,12 @@ function stepBlock(tree, st, jump) {
       ${m && m.source === 'shared' ? '<span class="badge ok">Shared</span>' : ''}
       ${isJump ? '<span class="badge cur">⤴ Jump</span>' : ''}
       ${skippable ? '<span class="tag dimtag">Skippable</span>' : ''}
+      ${needs.length ? `<span class="tag dimtag" title="Waiting on ${esc(needs.map(needLabel).join(', '))}">Needs ${esc(TREE[needs[0].treeId].name)}</span>` : ''}
       ${gate && !isJump ? `<span class="tag dimtag" title="${esc(GATE_INFO[gate].why)}">${GATE_INFO[gate].label}</span>` : ''}
       <span class="st-target">${fmtShort(st)}</span>
     </button>
     ${open ? `<div class="step-body">
+      ${needs.length ? `<div class="banner inner"><span class="eyebrow">${icon('lock')} Waiting on another skill</span><p>Opens once you've mastered ${needs.map((n) => `<a href="#/tree/${n.treeId}">${esc(needLabel(n))}</a>`).join(' and ')}. ${esc(st.name)} has its own step-by-step build-up there, so you reach it gradually instead of starting cold.</p></div>` : ''}
       ${pl ? `<div class="banner plateau inner"><span class="eyebrow" style="color:var(--warn)">Plateau detected</span><ul class="tips">${plateauTips(st, pl).map((t) => `<li>${esc(t)}</li>`).join('')}</ul></div>` : ''}
       ${isJump ? `<div class="banner jump inner">
         <span class="eyebrow" style="color:var(--accent-text)">⤴ Jump test</span>
@@ -172,7 +179,7 @@ function stepBlock(tree, st, jump) {
         ${status === 'available' ? `<button class="btn ghost small" data-act="master" data-step="${st.id}">I can already do this</button>` : ''}
         ${m && m.source !== 'logged' && m.source !== 'shared' ? `<button class="btn ghost small" data-act="unmaster" data-step="${st.id}">Unmark</button>` : ''}
       </div>
-      ${status === 'locked' && !isJump ? `<p class="muted small">Master the previous step to unlock this one. You can still log practice.</p>` : ''}
+      ${!needs.length && status === 'locked' && !isJump ? `<p class="muted small">Master the previous step to unlock this one. You can still log practice.</p>` : ''}
     </div>` : ''}
   </li>`;
 }
@@ -218,6 +225,7 @@ function etaCard(tree) {
       <div class="eta-box next">
         <span class="label">Next step</span>
         <strong>${esc(next.st.name)} <span class="mono muted small">${fmtShort(next.st)}</span></strong>
+        ${next.waitingOn ? `<span class="muted small">Opens after <a href="#/tree/${next.waitingOn.treeId}">${esc(needLabel(next.waitingOn))}</a></span>` : ''}
         <span class="eta-time">${eta.stalled ? 'Building strength' : fmtRange(next.weeks)}</span>
         ${pct != null ? `<div class="eta-bar" title="Your weakest set vs the target"><span style="width:${pct}%"></span></div><span class="muted small">${pct}% of the target</span>` : ''}
       </div>
@@ -284,7 +292,7 @@ export function renderTree(id) {
   const jump = jumpFor(state, tree);
   const next =
     ts === 'complete' ? `<span class="pill ok next"><i></i>Tree mastered</span>`
-    : ts === 'locked' ? `<span class="pill warn next"><i></i>Locked</span>`
+    : ts === 'locked' ? `<span class="pill warn next"><i></i>Waiting on ${esc(unmetNeeds(state, cur).map((n) => TREE[n.treeId].name).join(', ') || 'the previous step')}</span>`
     : `<span class="pill next"><i></i>Next up: ${esc(cur.name)}</span>`;
 
   return `<main class="page">

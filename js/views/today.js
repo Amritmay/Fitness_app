@@ -11,7 +11,14 @@ import { startRest, holdStopwatch } from '../timer.js';
 
 export function ensurePlan() {
   const d = today();
-  if (state.profile && !state.plans[d]) update((s) => (s.plans[d] = generatePlan(s, d)), { silent: true });
+  if (!state.profile) return;
+  const plan = state.plans[d];
+  // A planned step that isn't open any more (e.g. it now waits on another chain) is swapped out;
+  // anything already done today is kept.
+  const stale = plan?.items.some(
+    (it) => !itemDone(state, d, it) && !it.reason.startsWith('Jump test') && stepStatus(state, it.stepId) === 'locked'
+  );
+  if (!plan || stale) update((s) => (s.plans[d] = generatePlan(s, d)), { silent: true });
 }
 
 function greeting() {
